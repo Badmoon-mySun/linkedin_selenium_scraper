@@ -128,3 +128,8 @@ dmypy.json
 # Pyre type checker
 .pyre/
 /.idea/
+/proxy_auth_plugin.zip
+/proxy_auth_plugin_*.zip
+/sqlite.*
+/accounts.csv
+/proxy.json

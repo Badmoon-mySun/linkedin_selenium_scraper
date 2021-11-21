@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  postgres:
+    image: postgres
+    ports:
+      - 5432:5432
+    environment:
+      POSTGRES_DB: linkedin
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: linkedin123
+    volumes:
+      - db:/var/lib/postgresql/data
+
+volumes:
+  db:

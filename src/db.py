@@ -13,6 +13,10 @@ sqlite_db = peewee.SqliteDatabase(
         'cache_size': -1024 * 64}
 )
 
+# postgres_db = peewee.PostgresqlDatabase(
+#     DB_NAME, user=DB_USERNAME, password=DB_PASSWORD,host=DB_HOST, port=DB_PORT
+# )
+
 
 class JSONField(peewee.TextField):
     def db_value(self, value):
@@ -38,6 +42,24 @@ if not sqlite_db.table_exists('link'):
     sqlite_db.create_tables([Link])
 
 
+class Proxy(peewee.Model):
+    id = peewee.PrimaryKeyField()
+    protocol = peewee.CharField(max_length=10)
+    ip = peewee.CharField(max_length=20)
+    port = peewee.CharField(max_length=5)
+    need_auth = peewee.BooleanField()
+    login = peewee.CharField(null=True, max_length=100)
+    password = peewee.CharField(null=True, max_length=100)
+
+    class Meta:
+        database = sqlite_db
+        table_name = 'proxy'
+
+
+if not sqlite_db.table_exists('proxy'):
+    sqlite_db.create_tables([Proxy])
+
+
 class Account(peewee.Model):
     id = peewee.PrimaryKeyField()
     first_name = peewee.CharField(max_length=50)
@@ -47,6 +69,7 @@ class Account(peewee.Model):
     email_password = peewee.CharField(max_length=50)
     account_url = peewee.CharField(max_length=150)
     banned = peewee.BooleanField(default=False)
+    proxy = peewee.ForeignKeyField(Proxy, null=True)
 
     class Meta:
         database = sqlite_db
@@ -55,3 +78,6 @@ class Account(peewee.Model):
 
 if not sqlite_db.table_exists('accounts'):
     sqlite_db.create_tables([Account])
+
+
+

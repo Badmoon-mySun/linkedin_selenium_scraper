@@ -1,32 +1,25 @@
+import os
 import random
 import time
 
-from selenium import webdriver
-from selenium.webdriver.chrome.service import Service
 
 from db import Link, Account
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, ProfileHelper
 from imap import MailRuImap
-from services import bcolors
+from services import bcolors, get_chromedriver
 
 
 class LinkedInParsing:
     account: Account
     proxy: str
 
-    def __init__(self, account: Account, proxy: str):
-        service = Service(executable_path='/usr/local/bin/chromedriver')
-        chrome_options = webdriver.ChromeOptions()
-        chrome_options.add_argument('--proxy-server=%s' % proxy)
-        chrome_options.add_argument('--start-maximized')
-
-        self.driver = webdriver.Chrome(service=service, options=chrome_options)
+    def __init__(self, account: Account, use_proxy=False):
+        self.driver = get_chromedriver(account, use_proxy=use_proxy)
         self.driver.implicitly_wait(30)
 
         self.base_url = "https://www.linkedin.com/"
         self.accept_next_alert = True
 
-        self.proxy = proxy
         self.account = account
         self.navigation_helper = NavigationHelper(self.driver, self.base_url)
         self.login_helper = LoginHelper(self.driver, account.email, account.linkedin_password)

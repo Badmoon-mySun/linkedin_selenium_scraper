@@ -1,10 +1,14 @@
+import json
 import os
+import zipfile
+from random import randrange
 
-from python3_anticaptcha import FunCaptchaTask, FunCaptchaTaskProxyless
-from selenium.common.exceptions import NoSuchElementException
+from selenium import webdriver
+from selenium.webdriver.chrome.service import Service
+from python3_anticaptcha import FunCaptchaTaskProxyless
 
-from db import Account
-from settings import ROOT_DIR
+from db import Account, Proxy
+from settings import ROOT_DIR, CHROMEDRIVER_PATH
 
 
 class bcolors:
@@ -31,7 +35,7 @@ def get_account_data(data: list) -> dict:
     }
 
 
-def load_accounts(filename=os.path.join(ROOT_DIR, 'accounts.csv')):
+def load_accounts(filename=os.path.join(ROOT_DIR, '../accounts.csv')):
     accounts = []
 
     with open(filename, 'r') as file:
@@ -41,6 +45,130 @@ def load_accounts(filename=os.path.join(ROOT_DIR, 'accounts.csv')):
             accounts.append(account_data)
 
     Account.insert_many(accounts).on_conflict_ignore().execute()
+
+
+def load_proxy(filename=os.path.join(ROOT_DIR, '../proxy.json')):
+    proxies = []
+
+    with open(filename, 'r') as file:
+        proxy_info: dict = json.loads(file.read())
+
+        for ip in proxy_info.get('addresses', None):
+            proxy = {
+                "protocol": proxy_info.get('protocol'),
+                "port": proxy_info.get('port'),
+                "need_auth": proxy_info.get('login', None) is not None,
+                "login": proxy_info.get('login', None),
+                "password": proxy_info.get('password', None),
+                "ip": ip
+            }
+
+            proxies.append(proxy)
+
+    Proxy.insert_many(proxies).on_conflict_ignore().execute()
+
+
+def add_proxy_to_accounts(accounts: Account):
+    proxies = Proxy.select()
+    proxies_count = len(proxies)
+
+    if not proxies_count:
+        return
+
+    for i in range(len(accounts)):
+        proxy = proxies[(i + 10) % proxies_count]
+        account = accounts[i]
+
+        if not account.proxy:
+            account.proxy = proxy
+            account.save()
+
+
+def get_manifest():
+    return """
+        {
+            "version": "1.0.0",
+            "manifest_version": 2,
+            "name": "Chrome Proxy",
+            "permissions": [
+                "proxy",
+                "tabs",
+                "unlimitedStorage",
+                "storage",
+                "<all_urls>",
+                "webRequest",
+                "webRequestBlocking"
+            ],
+            "background": {
+                "scripts": ["background.js"]
+            },
+            "minimum_chrome_version":"22.0.0"
+        }
+    """
+
+
+def get_background_js(protocol, host, port, user, password):
+    return """
+        var config = {
+                mode: "fixed_servers",
+                rules: {
+                singleProxy: {
+                    scheme: "%s",
+                    host: "%s",
+                    port: parseInt(%s)
+                },
+                bypassList: ["localhost"]
+                }
+            };
+        
+        chrome.proxy.settings.set({value: config, scope: "regular"}, function() {});
+        
+        function callbackFn(details) {
+            return {
+                authCredentials: {
+                    username: "%s",
+                    password: "%s"
+                }
+            };
+        }
+        
+        chrome.webRequest.onAuthRequired.addListener(
+                    callbackFn,
+                    {urls: ["<all_urls>"]},
+                    ['blocking']
+        );
+    """ % (protocol, host, port, user, password)
+
+
+def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
+    service = Service(executable_path=CHROMEDRIVER_PATH)
+    chrome_options = webdriver.ChromeOptions()
+    chrome_options.add_argument('--start-maximized')
+
+    if use_proxy and account.proxy:
+        proxy: Proxy = account.proxy
+
+        if proxy.need_auth:
+            pluginfile = 'proxy_auth_plugin_%s.zip' % str(randrange(10000))
+
+            with zipfile.ZipFile(pluginfile, 'w') as zp:
+                zp.writestr("manifest.json", get_manifest())
+                zp.writestr(
+                    "background.js", get_background_js(proxy.protocol, proxy.ip,
+                                                       proxy.port, proxy.login, proxy.password)
+                )
+
+            chrome_options.add_extension(pluginfile)
+        else:
+            chrome_options.add_argument('--proxy-server=%s://%s:%s' % (proxy.protocol, proxy.ip, proxy.port))
+
+    if user_agent:
+        chrome_options.add_argument('--user-agent=%s' % user_agent)
+
+    return webdriver.Chrome(
+        service=service,
+        chrome_options=chrome_options
+    )
 
 
 def captcha():
