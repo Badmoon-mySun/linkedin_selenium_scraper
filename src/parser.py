@@ -3,8 +3,8 @@ import random
 import time
 
 
-from db import Link, Account
-from helpers import NavigationHelper, LoginHelper, VerificationHelper, ProfileHelper
+from db import Link, Account, LinkedInUser
+from helpers import NavigationHelper, LoginHelper, VerificationHelper, ProfileHelper, UserProfileHelper
 from imap import MailRuImap
 from services import bcolors, get_chromedriver
 
@@ -26,6 +26,7 @@ class LinkedInParsing:
         self.verification_helper = VerificationHelper(self.driver)
         self.mail = MailRuImap(account.email, account.email_password)
         self.profile_helper = ProfileHelper(self.driver)
+        self.user_profile_helper = UserProfileHelper(self.driver)
 
     def __login(self):
         self.navigation_helper.goto_login_page()
@@ -61,6 +62,7 @@ class LinkedInParsing:
             link.is_moscow_location = True
             link.save()
 
+
             more_button = profile_helper.get_more_also_viewed_button()
             if more_button:
                 try:
@@ -75,8 +77,33 @@ class LinkedInParsing:
             )
 
             Link.insert_many(links_data).on_conflict_ignore().execute()
+
             delay = random.randint(2, 4)
             time.sleep(delay)
+
+            self.save_user_info()
+
+            delay = random.randint(2, 4)
+            time.sleep(delay)
+
+    def save_user_info(self):
+        helper = self.user_profile_helper
+
+        city = helper.get_city()
+
+        user = LinkedInUser.create(
+            fullname=helper.get_fullname(),
+            about=helper.get_about(),
+            avatar=helper.get_avatar(),
+            following=helper.get_following_count(),
+            city=city.id if city else None,
+            position=helper.get_position(),
+        )
+
+        helper.save_experience(user)
+        helper.save_activity(user)
+        helper.save_education(user)
+        helper.save_user_contacts(user)
 
     def start(self):
         is_login_in = False
@@ -95,7 +122,7 @@ class LinkedInParsing:
                     is_login_in = True
 
                 self.__start_parsing_iteration()
-            except Exception as ex:
+            except ValueError as ex:
                 print(f'{bcolors.FAIL}{ex}{bcolors.ENDC}')
 
     def stop(self):

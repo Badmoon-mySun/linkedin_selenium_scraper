@@ -53,7 +53,7 @@ def load_proxy(filename=os.path.join(ROOT_DIR, '../proxy.json')):
     with open(filename, 'r') as file:
         proxy_info: dict = json.loads(file.read())
 
-        for ip in proxy_info.get('addresses', None):
+        for ip in proxy_info.get('addresses'):
             proxy = {
                 "protocol": proxy_info.get('protocol'),
                 "port": proxy_info.get('port'),
