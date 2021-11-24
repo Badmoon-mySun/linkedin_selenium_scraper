@@ -3,8 +3,7 @@ import os.path
 
 import peewee
 
-from settings import ROOT_DIR
-
+from settings import ROOT_DIR, DB_NAME, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT
 
 sqlite_db = peewee.SqliteDatabase(
     os.path.join(ROOT_DIR, '../sqlite.db'),
@@ -13,9 +12,11 @@ sqlite_db = peewee.SqliteDatabase(
         'cache_size': -1024 * 64}
 )
 
-# postgres_db = peewee.PostgresqlDatabase(
-#     DB_NAME, user=DB_USERNAME, password=DB_PASSWORD,host=DB_HOST, port=DB_PORT
-# )
+postgres_db = peewee.PostgresqlDatabase(
+    DB_NAME, user=DB_USERNAME, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
+)
+
+current_db = postgres_db
 
 
 class JSONField(peewee.TextField):
@@ -34,7 +35,7 @@ class Link(peewee.Model):
     is_moscow_location = peewee.BooleanField(default=False)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'link'
 
 
@@ -48,7 +49,7 @@ class Proxy(peewee.Model):
     password = peewee.CharField(null=True, max_length=100)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'proxy'
 
 
@@ -64,7 +65,7 @@ class Account(peewee.Model):
     proxy = peewee.ForeignKeyField(Proxy, null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'account'
 
 
@@ -74,7 +75,7 @@ class Company(peewee.Model):
     url = peewee.CharField(null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'linkedin_company'
 
 
@@ -83,7 +84,7 @@ class City(peewee.Model):
     name = peewee.CharField(max_length=100, unique=True, verbose_name='City name')
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'city'
 
 
@@ -92,7 +93,7 @@ class Language(peewee.Model):
     name = peewee.CharField(max_length=50, unique=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'language'
 
 
@@ -109,7 +110,7 @@ class LinkedInUser(peewee.Model):
     url = peewee.CharField(null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'linkedin_user'
 
 
@@ -123,7 +124,7 @@ class Education(peewee.Model):
     end_year = peewee.IntegerField(null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'linkedin_education'
 
 
@@ -136,7 +137,7 @@ class Activity(peewee.Model):
     link = peewee.CharField(null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'linkedin_user_activity'
 
 
@@ -152,7 +153,7 @@ class WorkExperience(peewee.Model):
     until_now = peewee.BooleanField(default=False)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'linkedin_work_experience'
 
 
@@ -164,7 +165,7 @@ class UserContactInfo(peewee.Model):
     meta = peewee.CharField(max_length=100, null=True)
 
     class Meta:
-        database = sqlite_db
+        database = current_db
         table_name = 'user_contact_info'
 
 
@@ -183,5 +184,5 @@ tables = {
 }
 
 for table_name, model in tables.items():
-    if not sqlite_db.table_exists(table_name):
-        sqlite_db.create_tables([model])
+    if not current_db.table_exists(table_name):
+        current_db.create_tables([model])
