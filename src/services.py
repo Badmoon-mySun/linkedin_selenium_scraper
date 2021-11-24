@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
 
 from db import Account, Proxy
-from settings import ROOT_DIR, CHROMEDRIVER_PATH
+from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR
 
 
 class bcolors:
@@ -21,6 +21,10 @@ class bcolors:
     ENDC = '\033[0m'
     BOLD = '\033[1m'
     UNDERLINE = '\033[4m'
+
+
+def logger(text, color=bcolors.OKBLUE):
+    print(f'{color}{text}{bcolors.ENDC}')
 
 
 def get_account_data(data: list) -> dict:
@@ -142,32 +146,37 @@ def get_background_js(protocol, host, port, user, password):
 
 def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
     service = Service(executable_path=CHROMEDRIVER_PATH)
-    chrome_options = webdriver.ChromeOptions()
-    chrome_options.add_argument('--start-maximized')
+    options = webdriver.ChromeOptions()
+    options.add_argument("window-size=1280,800")
+    options.add_argument('--start-maximized')
+    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
+    options.add_experimental_option("excludeSwitches", ["enable-automation"])
+    options.add_experimental_option('useAutomationExtension', False)
 
     if use_proxy and account.proxy:
         proxy: Proxy = account.proxy
 
         if proxy.need_auth:
-            pluginfile = 'proxy_auth_plugin_%s.zip' % str(randrange(10000))
+            plugin_file = 'proxy_auth_plugin_%s.zip' % str(randrange(10000))
+            plugin_file = os.path.join(os.path.join(PROJECT_DIR, 'plugins'), plugin_file)
 
-            with zipfile.ZipFile(pluginfile, 'w') as zp:
+            with zipfile.ZipFile(plugin_file, 'w') as zp:
                 zp.writestr("manifest.json", get_manifest())
                 zp.writestr(
                     "background.js", get_background_js(proxy.protocol, proxy.ip,
                                                        proxy.port, proxy.login, proxy.password)
                 )
 
-            chrome_options.add_extension(pluginfile)
+            options.add_extension(plugin_file)
         else:
-            chrome_options.add_argument('--proxy-server=%s://%s:%s' % (proxy.protocol, proxy.ip, proxy.port))
+            options.add_argument('--proxy-server=%s://%s:%s' % (proxy.protocol, proxy.ip, proxy.port))
 
     if user_agent:
-        chrome_options.add_argument('--user-agent=%s' % user_agent)
+        options.add_argument('--user-agent=%s' % user_agent)
 
     return webdriver.Chrome(
         service=service,
-        chrome_options=chrome_options
+        chrome_options=options
     )
 
 

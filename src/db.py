@@ -41,7 +41,7 @@ class Link(peewee.Model):
 class Proxy(peewee.Model):
     id = peewee.PrimaryKeyField()
     protocol = peewee.CharField(max_length=10)
-    ip = peewee.CharField(max_length=20)
+    ip = peewee.CharField(max_length=20, unique=True)
     port = peewee.CharField(max_length=5)
     need_auth = peewee.BooleanField()
     login = peewee.CharField(null=True, max_length=100)

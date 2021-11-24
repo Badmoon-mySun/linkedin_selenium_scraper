@@ -1,11 +1,12 @@
 import time
 from typing import Optional
 
-from selenium.common.exceptions import NoSuchElementException
+from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 
 from db import *
+from services import logger, bcolors
 
 
 class BaseHelper(object):
@@ -100,40 +101,6 @@ class VerificationHelper(BaseHelper):
             pass
 
 
-class ProfileHelper(BaseHelper):
-    def __init__(self, driver):
-        super(ProfileHelper, self).__init__(driver)
-
-    @staticmethod
-    def __get_first_or_none(elements):
-        if elements:
-            return elements[0]
-
-        return None
-
-    def get_location(self):
-        elements = self.driver.find_elements(
-            By.XPATH, '//span[@class="text-body-small inline t-black--light break-words"]'
-        )
-
-        return self.__get_first_or_none(elements)
-
-    def get_more_also_viewed_button(self):
-        elements = self.driver.find_elements(
-            By.XPATH,
-            '//button[@class="pv3 artdeco-card__action artdeco-button artdeco-button--muted '
-            'artdeco-button--icon-right artdeco-button--2 artdeco-button--fluid artdeco-button--tertiary ember-view"]'
-        )
-
-        return self.__get_first_or_none(elements)
-
-    def get_also_viewed_members(self):
-        return self.driver.find_elements(
-            By.XPATH,
-            '//a[@class="ember-view pv-browsemap-section__member align-items-center"]'
-        )
-
-
 class UserProfileHelper(BaseHelper):
     driver: webdriver.Chrome
 
@@ -142,12 +109,11 @@ class UserProfileHelper(BaseHelper):
 
     def __get_element_or_none(self, path, item=None):
         item = item if item else self.driver
-        elements = item.find_elements(By.CSS_SELECTOR, path)
 
-        if elements:
-            return elements[0]
-
-        return None
+        try:
+            return item.find_element(By.CSS_SELECTOR, path)
+        except NoSuchElementException:
+            return None
 
     def __get_text_or_none(self, path, item=None) -> Optional[str]:
         elem = self.__get_element_or_none(path, item)
@@ -159,6 +125,36 @@ class UserProfileHelper(BaseHelper):
 
         return elem.get_attribute(attr_name) if elem else None
 
+    def __move_to_element(self, element):
+        desired_y = (element.size['height'] / 2) + element.location['y']
+        current_y = (self.driver.execute_script('return window.innerHeight') / 2) + self.driver.execute_script(
+            'return window.pageYOffset')
+        scroll_y_by = desired_y - current_y
+        self.driver.execute_script("window.scrollBy(0, arguments[0]);", scroll_y_by)
+
+    def __do_click(self, element) -> bool:
+        try:
+            if element:
+                self.__move_to_element(element)
+                time.sleep(1)
+
+                element.click()
+                return True
+        except ElementClickInterceptedException as ex:
+            logger(ex, bcolors.FAIL)
+
+        return False
+
+    def save_also_vied(self):
+        button = self.__get_element_or_none('button.pv3.artdeco-card__action.artdeco-button.artdeco-button--muted')
+
+        self.__do_click(button)
+
+        viewers = self.driver.find_elements(By.CSS_SELECTOR, '.ember-view.pv-browsemap-section__member')
+        links_data = map(lambda el: {'url': el.get_attribute('href')}, viewers)
+
+        Link.insert_many(links_data).on_conflict_ignore().execute()
+
     def get_fullname(self) -> Optional[str]:
         return self.__get_text_or_none("h1.text-heading-xlarge.inline.t-24.v-align-middle.break-words")
 
@@ -168,11 +164,14 @@ class UserProfileHelper(BaseHelper):
     def get_about(self) -> Optional[str]:
         return self.__get_text_or_none("section.pv-about-section div")
 
-    def get_or_create_current_company(self) -> Company:
-        return Company.get_or_create(
-            name=self.__get_text_or_none('[data-section="currentPositionsDetails"] .top-card-link'),
-            url=self.__get_elem_attribute_or_none('[data-section="currentPositionsDetails"] .top-card-link', 'href')
-        )[0]
+    def get_or_create_current_company(self) -> Optional[Company]:
+        company = self.__get_element_or_none('a.pv-text-details__right-panel-item-link')
+
+        if not company:
+            return None
+        url = company.get_attribute('href')
+
+        return Company.get_or_create(name=self.__get_text_or_none('h2 div', company), url=url)[0]
 
     def get_avatar(self) -> Optional[str]:
         return self.__get_elem_attribute_or_none('img.pv-top-card-profile-picture__image', "src")
@@ -180,7 +179,12 @@ class UserProfileHelper(BaseHelper):
     def get_city(self) -> Optional[City]:
         city_name = self.__get_text_or_none('span.text-body-small.inline.t-black--light.break-words')
 
-        return City.get_or_create(name=city_name)[0] if city_name else None
+        if not city_name:
+            return None
+
+        city_name = city_name.lower().split(', ')[0]
+
+        return City.get_or_create(name=city_name)[0]
 
     def get_following_count(self) -> Optional[str]:
         following_count = self.__get_text_or_none('ul.pv-top-card--list li span')
@@ -202,7 +206,7 @@ class UserProfileHelper(BaseHelper):
         data = self.driver.find_elements(By.CSS_SELECTOR, 'section.pv-profile-section__card-item-v2')
 
         for item in data:
-            if self.__get_text_or_none('.pv-entity__company-details'):
+            if self.__get_text_or_none('.pv-entity__company-details', item):
                 company = Company.get_or_create(
                     name=self.__get_text_or_none('.pv-entity__company-summary-info h3 span:last-child', item),
                     url=self.__get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
@@ -211,24 +215,24 @@ class UserProfileHelper(BaseHelper):
                 positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item')
 
                 for position in positions:
-                    elem = position.find_elements('.pv-entity__date-range span')
+                    elem = position.find_elements(By.CSS_SELECTOR, '.pv-entity__date-range span')
 
                     duration = self.__parse_duration(elem)
 
-                    w = WorkExperience.create(
+                    while len(duration) < 2:
+                        duration.append(None)
+
+                    WorkExperience.create(
                         company=company.id,
                         user=user.id,
                         position=self.__get_text_or_none('div.pv-entity__summary-info--background-section '
                                                          'h3 span:last-child', position),
                         description=self.__get_text_or_none('.pv-entity__description', position),
                         duration=' '.join(duration),
-                        start_date=duration[0] if duration else None,
-                        end_date='Present' if len(duration) > 1 and duration[1] == 'Present' else duration[1],
-                        until_now=True if len(duration) > 1 and duration[1] == 'Present' else False
+                        start_date=duration[0],
+                        end_date='Present' if duration[1] == 'Present' else duration[1],
+                        until_now=True if duration[1] == 'Present' else False
                     )
-
-                    print(w.company, w.user, w.position, w.duration, w.description, w.start_date, w.end_date,
-                          w.until_now)
             else:
                 elems = item.find_elements(By.CSS_SELECTOR, 'h4.pv-entity__date-range span')
 
@@ -239,17 +243,19 @@ class UserProfileHelper(BaseHelper):
                     url=self.__get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
                 )[0]
 
-                w = WorkExperience.create(
+                while len(duration) < 2:
+                    duration.append(None)
+
+                WorkExperience.create(
                     company=company.id,
                     user=user.id,
                     position=self.__get_text_or_none('div.pv-entity__summary-info h3', item),
                     description=self.__get_text_or_none('.pv-entity__description', item),
                     duration=' - '.join(duration),
-                    start_date=duration[0] if duration else None,
-                    end_date='Present' if len(duration) > 1 and duration[1] == '- Present' else duration[1],
-                    until_now=True if len(duration) > 1 and duration[1] == '- Present' else False
+                    start_date=duration[0],
+                    end_date='Present' if duration[1] == '- Present' else duration[1],
+                    until_now=True if duration[1] == '- Present' else False
                 )
-                print(w.company, w.user, w.position, w.duration, w.description, w.start_date, w.end_date, w.until_now)
 
     def save_education(self, user: LinkedInUser):
         data = self.driver.find_elements(By.CSS_SELECTOR, 'li.pv-education-entity')
@@ -269,7 +275,7 @@ class UserProfileHelper(BaseHelper):
                 degree=degrees[0].text if degrees else None,
                 direction=degrees[1].text if len(degrees) > 1 else None,
                 start_year=duration[0].text if duration else None,
-                end_year=duration[1].text if len(duration) else None
+                end_year=duration[1].text if len(duration) > 1 else None
             )
 
     def save_activity(self, user: LinkedInUser):
@@ -286,11 +292,10 @@ class UserProfileHelper(BaseHelper):
 
     def save_user_contacts(self, user: LinkedInUser):
         open_button = self.__get_element_or_none('a.ember-view.link-without-visited-state.cursor-pointer')
-        if not open_button:
+
+        if not self.__do_click(open_button):
             return
 
-        open_button.click()
-        time.sleep(1)
         elements = self.driver.find_elements(By.CSS_SELECTOR, 'section.pv-contact-info__contact-type')
 
         for elem in elements:
@@ -307,6 +312,4 @@ class UserProfileHelper(BaseHelper):
                 )
 
         close_button = self.__get_element_or_none('button.artdeco-modal__dismiss')
-        if close_button:
-            close_button.click()
-
+        self.__do_click(close_button)

@@ -5,6 +5,7 @@ from dotenv import load_dotenv, find_dotenv
 load_dotenv(find_dotenv())
 
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.join(ROOT_DIR, '..')
 
 DB_HOST = os.environ.get("DB_HOST")
 DB_NAME = os.environ.get("DB_NAME")
