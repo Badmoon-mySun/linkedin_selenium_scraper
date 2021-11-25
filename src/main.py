@@ -1,8 +1,10 @@
 from multiprocessing import Pool
+from pyvirtualdisplay import Display
 
 from db import Account
 from parser import LinkedInParsing
 from services import bcolors, load_accounts, load_proxy, add_proxy_to_accounts
+from settings import DEBUG
 
 
 def worker(account: Account):
@@ -24,6 +26,10 @@ def get_or_load_accounts(load_form_file=False):
 
 
 if __name__ == "__main__":
+    if not DEBUG:
+        display = Display(size=(800, 600))
+        display.start()
+
     accounts = get_or_load_accounts(True)
 
     pools_count = 1

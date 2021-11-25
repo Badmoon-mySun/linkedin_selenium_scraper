@@ -3,7 +3,7 @@ import os.path
 
 import peewee
 
-from settings import ROOT_DIR, DB_NAME, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT
+from settings import ROOT_DIR, DB_NAME, DB_USERNAME, DB_PASSWORD, DB_HOST, DB_PORT, DEBUG
 
 sqlite_db = peewee.SqliteDatabase(
     os.path.join(ROOT_DIR, '../sqlite.db'),
@@ -12,11 +12,11 @@ sqlite_db = peewee.SqliteDatabase(
         'cache_size': -1024 * 64}
 )
 
-# postgres_db = peewee.PostgresqlDatabase(
-#     DB_NAME, user=DB_USERNAME, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
-# )
+postgres_db = peewee.PostgresqlDatabase(
+    DB_NAME, user=DB_USERNAME, password=DB_PASSWORD, host=DB_HOST, port=DB_PORT
+)
 
-current_db = sqlite_db
+current_db = sqlite_db if DEBUG else postgres_db
 
 
 class JSONField(peewee.TextField):
