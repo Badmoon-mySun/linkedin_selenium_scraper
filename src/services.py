@@ -8,7 +8,7 @@ from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
 
 from db import Account, Proxy
-from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR
+from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY
 
 
 class bcolors:
@@ -152,7 +152,6 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
-    options.add_argument("--headless")
 
     if use_proxy and account.proxy:
         proxy: Proxy = account.proxy
@@ -181,20 +180,16 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
     )
 
 
-def captcha():
-    ANTICAPTCHA_KEY = "52072a12b31d437f42f0c1825bda9fa5"
+def solve_captcha(url, key) -> str:
+    fun_captcha = FunCaptchaTaskProxyless.FunCaptchaTaskProxyless(anticaptcha_key=ANTICAPTCHA_KEY)
+    result = fun_captcha.captcha_handler(websiteURL=url, websitePublicKey=key, data='')
 
-    SITE_KEY = '3117BF26-4762-4F5A-8ED9-A85E69209A46'
+    status = result.get('status', None)
+    if status and status == 'ready':
+        solution = result.get('solution', None)
+        if solution:
+            token = solution.get('token', None)
+            if token:
+                return token
 
-    PAGE_URL = 'https://www.linkedin.com/checkpoint/challenge/AgG0hwLq2DHN3wAAAX0f62b4UmWQEcdMDSRLQpCLw8Ex5koKF-X8usjX-3RRDL75IshkbQ80JCKSvwPEfDcZM-Vrc96HdQ?ut=1KPlrXmcgLiG01'
-
-    result = FunCaptchaTaskProxyless.FunCaptchaTaskProxyless(anticaptcha_key=ANTICAPTCHA_KEY).captcha_handler(
-        websiteURL=PAGE_URL, websitePublicKey=SITE_KEY, data=''
-    )
-
-    print(result)
-
-
-if __name__ == '__main__':
-    # load_accounts()
-    captcha()
+    raise Exception('Exception in solve captcha: %s' % result)

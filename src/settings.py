@@ -14,3 +14,4 @@ DB_USERNAME = os.environ.get("DB_USERNAME", 'postgres')
 DB_PASSWORD = os.environ.get("DB_PASSWORD", 'linkedin')
 
 CHROMEDRIVER_PATH = "/usr/local/bin/chromedriver"
+ANTICAPTCHA_KEY = "52072a12b31d437f42f0c1825bda9fa5"

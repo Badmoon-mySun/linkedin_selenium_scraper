@@ -48,6 +48,9 @@ class LinkedInParsing:
         elif self.navigation_helper.is_add_phone_page():
             self.verification_helper.skip_add_phone_page()
 
+        # if not self.navigation_helper.is_feed_page():
+        #     raise Exception('Attempt to login failed')
+
     def __start_parsing_iteration(self):
         profile_helper = self.user_profile_helper
         driver = self.driver

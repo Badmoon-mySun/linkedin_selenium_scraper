@@ -6,7 +6,7 @@ from selenium.webdriver.common.by import By
 from selenium import webdriver
 
 from db import *
-from services import logger, bcolors
+from services import logger, bcolors, solve_captcha
 
 
 class BaseHelper(object):
@@ -56,6 +56,9 @@ class NavigationHelper(BaseHelper):
 
         return False
 
+    def is_feed_page(self):
+        return 'feed' in self.driver.current_url
+
 
 class LoginHelper(BaseHelper):
     def __init__(self, driver, login, password):
@@ -96,9 +99,19 @@ class VerificationHelper(BaseHelper):
 
             driver.find_element(By.XPATH, "//button[@type='submit']").click()
         else:
-            print('verification')
-            time.sleep(6000)
-            pass
+            time.sleep(22)
+
+            url = driver.current_url
+            form = driver.find_element(By.CSS_SELECTOR, 'form#captcha-challenge')
+            key = form.find_element(By.NAME, 'captchaSiteKey').get_attribute('value')
+
+            token = solve_captcha(url, key)
+            driver.execute_script(f"document.getElementsByName(\"captchaUserResponseToken\")[0].value = \"{token}\"")
+            print(key)
+            time.sleep(90)
+            form.submit()
+
+            time.sleep(5)
 
 
 class UserProfileHelper(BaseHelper):
