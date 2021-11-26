@@ -27,7 +27,7 @@ def get_or_load_accounts(load_form_file=False):
 
 if __name__ == "__main__":
     if not DEBUG:
-        display = Display(size=(800, 600))
+        display = Display(size=(1920, 1080))
         display.start()
 
     accounts = get_or_load_accounts(True)

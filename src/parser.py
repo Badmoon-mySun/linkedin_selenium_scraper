@@ -1,6 +1,7 @@
 import random
 import time
 
+import peewee
 
 from db import Link, Account, LinkedInUser
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
@@ -153,6 +154,9 @@ class LinkedInParsing:
                 else:
                     self.do_random_actions()
                     i = -1
+
+            except peewee.DataError as ex:
+                raise ex
 
             except Exception as ex:
                 print(f'{bcolors.FAIL}{ex}{bcolors.ENDC}')
