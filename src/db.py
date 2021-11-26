@@ -131,8 +131,8 @@ class Education(peewee.Model):
 class Activity(peewee.Model):
     id = peewee.PrimaryKeyField()
     user = peewee.ForeignKeyField(LinkedInUser, null=True)
-    title = peewee.CharField(max_length=250, null=True)
-    attribution = peewee.CharField(max_length=250, null=True)
+    title = peewee.TextField(null=True)
+    attribution = peewee.TextField(null=True)
     image = peewee.CharField(null=True)
     link = peewee.CharField(null=True)
 

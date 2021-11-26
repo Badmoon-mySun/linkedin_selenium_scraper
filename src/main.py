@@ -32,7 +32,7 @@ if __name__ == "__main__":
 
     accounts = get_or_load_accounts(True)
 
-    pools_count = 1
+    pools_count = 1 if DEBUG else 2
 
     with Pool(pools_count) as pool:
         pool.map(worker, accounts)
