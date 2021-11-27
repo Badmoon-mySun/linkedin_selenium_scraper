@@ -153,6 +153,11 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
     options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
+    options.add_experimental_option("prefs", {
+        "credentials_enable_service": False,
+        "profile.password_manager_enabled": False
+    })
+
     if not DEBUG:
         options.add_argument("--disable-dev-shm-usage")
         options.add_argument("--no-sandbox")
@@ -188,13 +193,14 @@ def solve_captcha(url, key) -> str:
     fun_captcha = FunCaptchaTaskProxyless.FunCaptchaTaskProxyless(anticaptcha_key=ANTICAPTCHA_KEY)
 
     i = 0
-    while i <= 5:
+    while i < 5:
         result = fun_captcha.captcha_handler(websiteURL=url, websitePublicKey=key, data='')
-        error_id = result.get('errorId', None)
+        error_id = result.get('errorId', -1)
 
-        if error_id and error_id == 0:
+        if error_id == 0:
             break
 
+        logger('captcha task, result: %s' % result)
         time.sleep(20)
         i += 1
 

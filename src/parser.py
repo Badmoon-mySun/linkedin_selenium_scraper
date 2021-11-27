@@ -36,12 +36,12 @@ class LinkedInParsing:
         self.navigation_helper.goto_login_page()
         self.login_helper.do_login()
 
-        if self.navigation_helper.is_email_verification_page():
+        while self.navigation_helper.is_verification_page():
             time.sleep(5)
             code = self.mail.get_last_email_verification_code()
             self.verification_helper.do_verification(code)
 
-        elif self.navigation_helper.is_identity_verification_page():
+        if self.navigation_helper.is_identity_verification_page():
             print(f'{bcolors.WARNING}Account {self.account.email} has been banned, exit...{bcolors.ENDC}')
             self.account.banned = True
             self.account.save()
@@ -49,8 +49,11 @@ class LinkedInParsing:
         elif self.navigation_helper.is_add_phone_page():
             self.verification_helper.skip_add_phone_page()
 
-        # if not self.navigation_helper.is_feed_page():
-        #     raise Exception('Attempt to login failed')
+        self.navigation_helper.goto_feed_page()
+        if not self.navigation_helper.is_feed_page():
+            raise Exception('Attempt to login failed')
+
+        self.user_profile_helper.close_msg_tab()
 
     def __start_parsing_iteration(self):
         profile_helper = self.user_profile_helper
@@ -79,8 +82,6 @@ class LinkedInParsing:
     def save_user_info(self, city):
         helper = self.user_profile_helper
 
-        company = helper.get_or_create_current_company()
-
         user = LinkedInUser.create(
             fullname=helper.get_fullname(),
             about=helper.get_about(),
@@ -88,7 +89,6 @@ class LinkedInParsing:
             following=helper.get_following_count(),
             city=city.id if city else None,
             position=helper.get_position(),
-            current_company=company.id if company else None,
             url=self.driver.current_url
         )
 
@@ -136,17 +136,17 @@ class LinkedInParsing:
         is_login_in = False
         i = 0
 
-        while True:
+        while not self.account.banned:
             try:
-                if self.account.banned:
-                    break
-
                 if self.navigation_helper.is_auth_page():
                     is_login_in = False
 
                 if not is_login_in:
                     self.driver.delete_all_cookies()
                     self.__login()
+                    if self.account.banned:
+                        break
+
                     is_login_in = True
 
                 if i < 7:

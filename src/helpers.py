@@ -32,7 +32,7 @@ class NavigationHelper(BaseHelper):
     def goto_login_page(self):
         self.driver.get(f'{self.base_url}login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin')
 
-    def is_email_verification_page(self):
+    def is_verification_page(self):
         if 'checkpoint/challenge/' in self.driver.current_url:
             return True
 
@@ -59,6 +59,9 @@ class NavigationHelper(BaseHelper):
     def is_feed_page(self):
         return 'feed' in self.driver.current_url
 
+    def goto_feed_page(self):
+        self.driver.get(f'{self.base_url}feed?trk=guest_homepage-basic_nav-header-signin')
+
 
 class LoginHelper(BaseHelper):
     def __init__(self, driver, login, password):
@@ -79,39 +82,60 @@ class LoginHelper(BaseHelper):
 
 
 class VerificationHelper(BaseHelper):
+    driver: webdriver
+
     def __init__(self, driver):
         super().__init__(driver)
 
     def skip_add_phone_page(self):
         self.driver.find_element(By.XPATH, '//*[@id="ember455"]/button').click()
 
+    def __email_verification(self, input_pin, code):
+        input_pin.click()
+        input_pin.clear()
+        input_pin.send_keys(code)
+
+        self.driver.find_element(By.XPATH, "//button[@type='submit']").click()
+
+    def __do_captcha_challenge(self):
+        driver = self.driver
+        time.sleep(20)
+
+        url = driver.current_url
+        form = driver.find_element(By.CSS_SELECTOR, 'form#captcha-challenge')
+        key = form.find_element(By.NAME, 'captchaSiteKey').get_attribute('value')
+
+        token = solve_captcha(url, key)
+        driver.execute_script(f"document.getElementsByName(\"captchaUserResponseToken\")[0].value = \"{token}\"")
+
+        time.sleep(5)
+        form.submit()
+
+        time.sleep(5)
+
     def do_verification(self, code):
         driver = self.driver
 
-        elements = driver.find_elements(By.ID, "input__email_verification_pin")
+        try:
+            element = driver.find_element(By.ID, "input__email_verification_pin")
+            self.__email_verification(element, code)
+        except NoSuchElementException:
+            pass
 
-        if elements:
-            input_pin = elements[0]
+        try:
+            self.__do_captcha_challenge()
+        except NoSuchElementException:
+            pass
 
-            input_pin.click()
-            input_pin.clear()
-            input_pin.send_keys(code)
-
-            driver.find_element(By.XPATH, "//button[@type='submit']").click()
-        else:
-            time.sleep(22)
-
-            url = driver.current_url
-            form = driver.find_element(By.CSS_SELECTOR, 'form#captcha-challenge')
-            key = form.find_element(By.NAME, 'captchaSiteKey').get_attribute('value')
-
-            token = solve_captcha(url, key)
-            driver.execute_script(f"document.getElementsByName(\"captchaUserResponseToken\")[0].value = \"{token}\"")
-            print(key)
-            time.sleep(90)
-            form.submit()
-
-            time.sleep(5)
+        try:
+            banner = driver.find_element(By.CSS_SELECTOR, '.app__content h1').text
+            time.sleep(4)
+            if 'Something isn’t quite right' in banner:
+                driver.find_element(By.CSS_SELECTOR, 'label.form__label').click()
+                time.sleep(1)
+                driver.find_element(By.CSS_SELECTOR, 'button.content__button--primary').click()
+        except NoSuchElementException:
+            pass
 
 
 class UserProfileHelper(BaseHelper):
@@ -226,6 +250,8 @@ class UserProfileHelper(BaseHelper):
                 )[0]
 
                 positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item')
+                if not positions:
+                    positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item-fading-timeline')
 
                 for position in positions:
                     elem = position.find_elements(By.CSS_SELECTOR, '.pv-entity__date-range span')
@@ -235,7 +261,7 @@ class UserProfileHelper(BaseHelper):
                     while len(duration) < 2:
                         duration.append(None)
 
-                    WorkExperience.create(
+                    ex = WorkExperience.create(
                         company=company.id,
                         user=user.id,
                         position=self.__get_text_or_none('div.pv-entity__summary-info--background-section '
@@ -246,6 +272,10 @@ class UserProfileHelper(BaseHelper):
                         end_date='Present' if duration[1] == 'Present' else duration[1],
                         until_now=True if duration[1] == 'Present' else False
                     )
+
+                    if ex.until_now:
+                        user.current_company = company.id
+                        user.save()
             else:
                 elems = item.find_elements(By.CSS_SELECTOR, 'h4.pv-entity__date-range span')
 
@@ -259,16 +289,20 @@ class UserProfileHelper(BaseHelper):
                 while len(duration) < 2:
                     duration.append(None)
 
-                WorkExperience.create(
+                ex = WorkExperience.create(
                     company=company.id,
                     user=user.id,
                     position=self.__get_text_or_none('div.pv-entity__summary-info h3', item),
                     description=self.__get_text_or_none('.pv-entity__description', item),
-                    duration=' - '.join(duration),
+                    duration=' '.join(duration),
                     start_date=duration[0],
-                    end_date='Present' if duration[1] == '- Present' else duration[1],
-                    until_now=True if duration[1] == '- Present' else False
+                    end_date='Present' if duration[1] == 'Present' else duration[1],
+                    until_now=True if duration[1] == 'Present' else False
                 )
+
+                if ex.until_now:
+                    user.current_company = company.id
+                    user.save()
 
     def save_education(self, user: LinkedInUser):
         data = self.driver.find_elements(By.CSS_SELECTOR, 'li.pv-education-entity')
@@ -282,7 +316,7 @@ class UserProfileHelper(BaseHelper):
             degrees = elem.find_elements(By.CSS_SELECTOR, 'span.pv-entity__comma-item')
             duration = elem.find_elements(By.CSS_SELECTOR, 'p.pv-entity__dates span time')
 
-            Education(
+            Education.create(
                 institution=institution.id,
                 user=user.id,
                 degree=degrees[0].text if degrees else None,
@@ -326,3 +360,9 @@ class UserProfileHelper(BaseHelper):
 
         close_button = self.__get_element_or_none('button.artdeco-modal__dismiss')
         self.__do_click(close_button)
+
+    def close_msg_tab(self):
+        if self.__get_element_or_none('.msg-overlay-list-bubble__content'):
+            btn = self.__get_element_or_none('.msg-overlay-bubble-header__control--new-convo-btn:last-child')
+            if btn:
+                btn.click()
