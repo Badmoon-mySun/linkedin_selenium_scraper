@@ -259,7 +259,7 @@ class UserProfileHelper(BaseHelper):
                     duration = self.__parse_duration(elem)
 
                     while len(duration) < 2:
-                        duration.append(None)
+                        duration.append('')
 
                     ex = WorkExperience.create(
                         company=company.id,
@@ -287,7 +287,7 @@ class UserProfileHelper(BaseHelper):
                 )[0]
 
                 while len(duration) < 2:
-                    duration.append(None)
+                    duration.append('')
 
                 ex = WorkExperience.create(
                     company=company.id,
