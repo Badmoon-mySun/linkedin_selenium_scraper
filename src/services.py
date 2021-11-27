@@ -1,5 +1,6 @@
 import json
 import os
+import time
 import zipfile
 from random import randrange
 
@@ -185,7 +186,17 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
 
 def solve_captcha(url, key) -> str:
     fun_captcha = FunCaptchaTaskProxyless.FunCaptchaTaskProxyless(anticaptcha_key=ANTICAPTCHA_KEY)
-    result = fun_captcha.captcha_handler(websiteURL=url, websitePublicKey=key, data='')
+
+    i = 0
+    while i <= 5:
+        result = fun_captcha.captcha_handler(websiteURL=url, websitePublicKey=key, data='')
+        error_id = result.get('errorId', None)
+
+        if error_id and error_id == 0:
+            break
+
+        time.sleep(20)
+        i += 1
 
     status = result.get('status', None)
     if status and status == 'ready':
