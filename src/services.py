@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import time
 import zipfile
@@ -10,22 +11,6 @@ from python3_anticaptcha import FunCaptchaTaskProxyless
 
 from db import Account, Proxy
 from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG
-
-
-class bcolors:
-    HEADER = '\033[95m'
-    OKBLUE = '\033[94m'
-    OKCYAN = '\033[96m'
-    OKGREEN = '\033[92m'
-    WARNING = '\033[93m'
-    FAIL = '\033[91m'
-    ENDC = '\033[0m'
-    BOLD = '\033[1m'
-    UNDERLINE = '\033[4m'
-
-
-def logger(text, color=bcolors.OKBLUE):
-    print(f'{color}{text}{bcolors.ENDC}')
 
 
 def get_account_data(data: list) -> dict:
@@ -190,6 +175,7 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
 
 
 def solve_captcha(url, key) -> str:
+    logger = logging.getLogger('linkedin.service.solve_captcha')
     fun_captcha = FunCaptchaTaskProxyless.FunCaptchaTaskProxyless(anticaptcha_key=ANTICAPTCHA_KEY)
 
     i = 0
@@ -200,7 +186,7 @@ def solve_captcha(url, key) -> str:
         if error_id == 0:
             break
 
-        logger('captcha task, result: %s' % result)
+        logger.info('captcha task, result: %s' % result)
         time.sleep(20)
         i += 1
 

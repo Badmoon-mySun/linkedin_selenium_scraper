@@ -1,12 +1,15 @@
+import logging
 import random
+import sys
 import time
+import traceback
 
 import peewee
 
 from db import Link, Account, LinkedInUser
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
 from imap import MailRuImap
-from services import bcolors, get_chromedriver
+from services import get_chromedriver
 
 
 def random_sleep(min_time=7, max_time=15):
@@ -33,6 +36,7 @@ class LinkedInParsing:
         self.user_profile_helper = UserProfileHelper(self.driver)
 
     def __login(self):
+        raise Exception()
         self.navigation_helper.goto_login_page()
         self.login_helper.do_login()
 
@@ -42,7 +46,9 @@ class LinkedInParsing:
             self.verification_helper.do_verification(code)
 
         if self.navigation_helper.is_identity_verification_page():
-            print(f'{bcolors.WARNING}Account {self.account.email} has been banned, exit...{bcolors.ENDC}')
+            logger = logging.getLogger('linkedin.parser.LinkedInParsing.__login')
+            logger.warning(f'Account {self.account.email} has been banned, exit...')
+
             self.account.banned = True
             self.account.save()
 
@@ -133,6 +139,7 @@ class LinkedInParsing:
             random_sleep(9, 20)
 
     def start(self):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.start')
         is_login_in = False
         i = 0
 
@@ -155,11 +162,10 @@ class LinkedInParsing:
                     self.do_random_actions()
                     i = -1
 
-            except peewee.DataError as ex:
-                raise ex
-
             except Exception as ex:
-                print(f'{bcolors.FAIL}{ex}{bcolors.ENDC}')
+                logger.error(ex)
+                logger.error(ex, exc_info=True)
+
                 self.driver.refresh()
 
             i += 1

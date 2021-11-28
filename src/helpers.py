@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Optional
 
@@ -6,7 +7,7 @@ from selenium.webdriver.common.by import By
 from selenium import webdriver
 
 from db import *
-from services import logger, bcolors, solve_captcha
+from services import solve_captcha
 
 
 class BaseHelper(object):
@@ -16,7 +17,7 @@ class BaseHelper(object):
     def is_element_present(self, how, what):
         try:
             self.driver.find_element(by=how, value=what)
-        except NoSuchElementException as e:
+        except NoSuchElementException:
             return False
         return True
 
@@ -178,7 +179,8 @@ class UserProfileHelper(BaseHelper):
                 element.click()
                 return True
         except ElementClickInterceptedException as ex:
-            logger(ex, bcolors.FAIL)
+            logger = logging.getLogger('linkedin.helpers.UserProfileHelper.__do_click')
+            logger.error(ex.stacktrace)
 
         return False
 

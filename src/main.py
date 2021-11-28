@@ -1,14 +1,20 @@
+import logging
+import logging.config
 from multiprocessing import Pool
 from pyvirtualdisplay import Display
 
 from db import Account
 from parser import LinkedInParsing
-from services import bcolors, load_accounts, load_proxy, add_proxy_to_accounts
-from settings import DEBUG
+from services import load_accounts, load_proxy, add_proxy_to_accounts
+from settings import DEBUG, LOGGING_CONF_PATH
+
+logging.config.fileConfig(LOGGING_CONF_PATH)
 
 
 def worker(account: Account):
-    print(f'{bcolors.OKGREEN}Starting parsing with {account.email} account{bcolors.ENDC}')
+    logger = logging.getLogger('linkedin.main.worker')
+    logger.info(f'Starting parsing with {account.email} account')
+    print(logger.handlers)
     LinkedInParsing(account, use_proxy=True).start()
 
 
