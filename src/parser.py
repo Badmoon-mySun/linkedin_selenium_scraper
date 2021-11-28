@@ -36,7 +36,6 @@ class LinkedInParsing:
         self.user_profile_helper = UserProfileHelper(self.driver)
 
     def __login(self):
-        raise Exception()
         self.navigation_helper.goto_login_page()
         self.login_helper.do_login()
 

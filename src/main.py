@@ -14,7 +14,7 @@ logging.config.fileConfig(LOGGING_CONF_PATH)
 def worker(account: Account):
     logger = logging.getLogger('linkedin.main.worker')
     logger.info(f'Starting parsing with {account.email} account')
-    print(logger.handlers)
+
     LinkedInParsing(account, use_proxy=True).start()
 
 
