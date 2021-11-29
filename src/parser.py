@@ -61,6 +61,7 @@ class LinkedInParsing:
         self.user_profile_helper.close_msg_tab()
 
     def __start_parsing_iteration(self):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.__start_parsing_iteration')
         profile_helper = self.user_profile_helper
         driver = self.driver
 
@@ -72,6 +73,7 @@ class LinkedInParsing:
         random_sleep()
 
         city = profile_helper.get_city()
+        logger.info('Parsing user: %s has city: %s' % (link.url, city.name))
         if city and city.name and 'moscow' in city.name:
             link.is_moscow_location = True
             link.save()
@@ -162,7 +164,6 @@ class LinkedInParsing:
                     i = -1
 
             except Exception as ex:
-                logger.error(ex)
                 logger.error(ex, exc_info=True)
 
                 self.driver.refresh()
