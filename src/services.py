@@ -10,7 +10,7 @@ from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
 
 from db import Account, Proxy
-from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG
+from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG, USER_AGENT
 
 
 def get_account_data(data: list) -> dict:
@@ -135,7 +135,7 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
     options = webdriver.ChromeOptions()
     options.add_argument("window-size=1280,800")
     options.add_argument('--start-maximized')
-    options.add_argument("user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/74.0.3729.169 Safari/537.36")
+    options.add_argument(f"user-agent={USER_AGENT}")
     options.add_experimental_option("excludeSwitches", ["enable-automation"])
     options.add_experimental_option('useAutomationExtension', False)
     options.add_experimental_option("prefs", {

@@ -1,4 +1,3 @@
-import json
 import os.path
 
 import peewee
@@ -19,18 +18,9 @@ postgres_db = peewee.PostgresqlDatabase(
 current_db = sqlite_db if DEBUG else postgres_db
 
 
-class JSONField(peewee.TextField):
-    def db_value(self, value):
-        return json.dumps(value)
-
-    def python_value(self, value):
-        if value is not None:
-            return json.loads(value)
-
-
 class Link(peewee.Model):
     id = peewee.PrimaryKeyField()
-    url = peewee.CharField(unique=True)
+    url = peewee.CharField(max_length=510, unique=True)
     is_checked = peewee.BooleanField(default=False)
     is_moscow_location = peewee.BooleanField(default=False)
 
@@ -60,7 +50,7 @@ class Account(peewee.Model):
     email = peewee.CharField(max_length=90, unique=True)
     linkedin_password = peewee.CharField(max_length=50)
     email_password = peewee.CharField(max_length=50)
-    account_url = peewee.CharField(max_length=150)
+    account_url = peewee.CharField(max_length=510)
     banned = peewee.BooleanField(default=False)
     proxy = peewee.ForeignKeyField(Proxy, null=True)
 
@@ -72,7 +62,7 @@ class Account(peewee.Model):
 class Company(peewee.Model):
     id = peewee.PrimaryKeyField()
     name = peewee.CharField(max_length=255, null=True)
-    url = peewee.CharField(null=True)
+    url = peewee.CharField(max_length=510, null=True)
 
     class Meta:
         database = current_db
@@ -82,6 +72,9 @@ class Company(peewee.Model):
 class City(peewee.Model):
     id = peewee.PrimaryKeyField()
     name = peewee.CharField(max_length=100, unique=True, verbose_name='City name')
+
+    def __str__(self):
+        return self.name
 
     class Meta:
         database = current_db
@@ -107,7 +100,7 @@ class LinkedInUser(peewee.Model):
     current_company = peewee.ForeignKeyField(Company, null=True, related_name='employees')
     city = peewee.ForeignKeyField(City, null=True)
     languages = peewee.ManyToManyField(Language)
-    url = peewee.CharField(null=True)
+    url = peewee.CharField(max_length=510, null=True)
 
     class Meta:
         database = current_db
@@ -117,10 +110,10 @@ class LinkedInUser(peewee.Model):
 class Education(peewee.Model):
     id = peewee.PrimaryKeyField()
     user = peewee.ForeignKeyField(LinkedInUser, null=True)
-    degree = peewee.CharField(max_length=50, null=True)
+    degree = peewee.CharField(max_length=200, null=True)
     institution = peewee.ForeignKeyField(Company, null=True)
     start_year = peewee.IntegerField(null=True)
-    direction = peewee.CharField(max_length=100, null=True)
+    direction = peewee.CharField(max_length=150, null=True)
     end_year = peewee.IntegerField(null=True)
 
     class Meta:
@@ -161,7 +154,7 @@ class UserContactInfo(peewee.Model):
     id = peewee.PrimaryKeyField()
     user = peewee.ForeignKeyField(LinkedInUser, null=True)
     name = peewee.CharField(max_length=100, null=True)
-    url = peewee.CharField(null=True)
+    url = peewee.CharField(max_length=510, null=True)
     meta = peewee.CharField(max_length=100, null=True)
 
     class Meta:

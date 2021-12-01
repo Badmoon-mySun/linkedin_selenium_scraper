@@ -2,12 +2,14 @@ import logging
 import time
 from typing import Optional
 
+from python_anticaptcha import AnticatpchaException
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
 from selenium.webdriver.common.by import By
 from selenium import webdriver
 
+from anticaptcha import Anticaptcha
 from db import *
-from services import solve_captcha
+from settings import USER_AGENT
 
 
 class BaseHelper(object):
@@ -98,7 +100,8 @@ class VerificationHelper(BaseHelper):
 
         self.driver.find_element(By.XPATH, "//button[@type='submit']").click()
 
-    def __do_captcha_challenge(self):
+    def __do_captcha_challenge(self, account):
+        anticaptcha = Anticaptcha(account, USER_AGENT)
         driver = self.driver
         time.sleep(20)
 
@@ -106,7 +109,7 @@ class VerificationHelper(BaseHelper):
         form = driver.find_element(By.CSS_SELECTOR, 'form#captcha-challenge')
         key = form.find_element(By.NAME, 'captchaSiteKey').get_attribute('value')
 
-        token = solve_captcha(url, key)
+        token = anticaptcha.solve_captcha(url, key)
         driver.execute_script(f"document.getElementsByName(\"captchaUserResponseToken\")[0].value = \"{token}\"")
 
         time.sleep(5)
@@ -114,7 +117,8 @@ class VerificationHelper(BaseHelper):
 
         time.sleep(5)
 
-    def do_verification(self, code):
+    def do_verification(self, code, account):
+        logger = logging.getLogger('linkedin.helpers.VerificationHelper.do_verification')
         driver = self.driver
 
         try:
@@ -124,7 +128,10 @@ class VerificationHelper(BaseHelper):
             pass
 
         try:
-            self.__do_captcha_challenge()
+            self.__do_captcha_challenge(account)
+        except AnticatpchaException as ex:
+            logger.error(ex.error_description)
+            exit(1)
         except NoSuchElementException:
             pass
 

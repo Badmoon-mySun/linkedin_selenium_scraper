@@ -33,6 +33,12 @@ class MailRuImap:
 
         return ''
 
+    def close(self):
+        try:
+            self.mail.close()
+        except:
+            pass
+
 
 if __name__ == '__main__':
     mail = MailRuImap('maria_nash_1964@inbox.ru', 'MEcetLhHqq7qKZRF6D62')

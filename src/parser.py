@@ -1,12 +1,12 @@
 import logging
 import random
-import sys
 import time
-import traceback
+from imaplib import IMAP4
 
-import peewee
+from peewee import InternalError
+from python_anticaptcha import AnticatpchaException
 
-from db import Link, Account, LinkedInUser
+from db import Link, Account, LinkedInUser, current_db
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
 from imap import MailRuImap
 from services import get_chromedriver
@@ -36,16 +36,16 @@ class LinkedInParsing:
         self.user_profile_helper = UserProfileHelper(self.driver)
 
     def __login(self):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.__login')
         self.navigation_helper.goto_login_page()
         self.login_helper.do_login()
 
         while self.navigation_helper.is_verification_page():
             time.sleep(5)
             code = self.mail.get_last_email_verification_code()
-            self.verification_helper.do_verification(code)
+            self.verification_helper.do_verification(code, self.account)
 
         if self.navigation_helper.is_identity_verification_page():
-            logger = logging.getLogger('linkedin.parser.LinkedInParsing.__login')
             logger.warning(f'Account {self.account.email} has been banned, exit...')
 
             self.account.banned = True
@@ -73,7 +73,7 @@ class LinkedInParsing:
         random_sleep()
 
         city = profile_helper.get_city()
-        logger.info('Parsing user: %s has city: %s' % (link.url, city.name))
+        logger.info('Parsing user: %s has city: %s' % (link.url, city))
         if city and city.name and 'moscow' in city.name:
             link.is_moscow_location = True
             link.save()
@@ -163,9 +163,17 @@ class LinkedInParsing:
                     self.do_random_actions()
                     i = -1
 
+            except InternalError as ex:
+                logger.error(ex, exc_info=True)
+                current_db.rollback()
+
+            except IMAP4.abort as ex:
+                logger.error(ex, exc_info=True)
+                self.mail.close()
+                self.mail = MailRuImap(self.account.email, self.account.email_password)
+
             except Exception as ex:
                 logger.error(ex, exc_info=True)
-
                 self.driver.refresh()
 
             i += 1

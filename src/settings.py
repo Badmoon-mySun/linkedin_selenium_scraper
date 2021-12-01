@@ -18,3 +18,6 @@ DB_PASSWORD = os.environ.get("DB_PASSWORD", 'linkedin123')
 
 CHROMEDRIVER_PATH = "/usr/local/bin/chromedriver"
 ANTICAPTCHA_KEY = "52072a12b31d437f42f0c1825bda9fa5"
+
+USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) " \
+             "Chrome/74.0.3729.169 Safari/537.36"
