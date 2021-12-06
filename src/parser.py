@@ -1,15 +1,16 @@
+import datetime
 import logging
 import random
+import sys
 import time
 from imaplib import IMAP4
 
 from peewee import InternalError
-from python_anticaptcha import AnticatpchaException
 
 from db import Link, Account, LinkedInUser, current_db
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
 from imap import MailRuImap
-from services import get_chromedriver
+from services import get_chromedriver, get_random_linkedin_url
 
 
 def random_sleep(min_time=7, max_time=15):
@@ -105,47 +106,26 @@ class LinkedInParsing:
         helper.save_user_contacts(user)
 
     def do_random_actions(self):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.do_random_actions')
         driver = self.driver
 
-        urls = [
-            "https://www.linkedin.com/feed/",
-            "https://www.linkedin.com/premium/survey/?destRedirectURL=https%3A%2F%2Fwww.linkedin.com%2Ffeed%2F%3FshowPremiumWelcomeBanner%3Dtrue&upsellOrderOrigin=premium_homepage_identity_upsell",
-            "https://www.linkedin.com/jobs/",
-            "https://www.linkedin.com/mynetwork/",
-            "https://www.linkedin.com/feed/following/?filterType=member",
-            "https://www.linkedin.com/mynetwork/discover-hub/",
-            "https://linkedin.com/mynetwork/network-manager/newsletters/",
-            "https://www.linkedin.com/notifications/",
-            "https://www.linkedin.com/company/exxonmobil/mycompany/verification/",
-            "https://www.linkedin.com/messaging/thread/new/",
-            "https://www.linkedin.com/company/capgemini/",
-            "https://www.linkedin.com/showcase/capgemini-fs/",
-            "https://www.linkedin.com/company/bearingpoint/",
-            "https://www.linkedin.com/feed/following/?filterType=channel&focused=true",
-            "https://www.linkedin.com/company/hihk/?isFollowingPage=true",
-            "https://www.linkedin.com/mynetwork/import-contacts/saved-contacts/",
-            "https://www.linkedin.com/feed/following/?filterType=company",
-            "https://www.linkedin.com/feed/followers/",
-            "https://www.linkedin.com/learning/?trk=nav_neptune_learning",
-            "https://www.linkedin.com/salary?trk=d_flagship3_nav",
-            "https://www.linkedin.com/salary/software-engineer-salaries-in-san-francisco-bay-area",
-            "https://www.linkedin.com/groups/",
-            "https://www.linkedin.com/talent/post-a-job?trk=nav_app_launcher_job_post_nept",
-            "https://www.linkedin.com/insights?trk=nav_app_launcher_insights_nept&src=li-nav",
-        ]
-
-        url = random.choice(urls)
-        for i in range(random.randint(1, 4)):
+        for i in range(random.randint(2, 5)):
+            url = get_random_linkedin_url()
             driver.get(url)
+            logger.info('Go to random linkedin url: %s' % url)
             random_sleep(9, 20)
 
-    def start(self):
+    def start(self, end_after_hour=sys.maxsize):
         logger = logging.getLogger('linkedin.parser.LinkedInParsing.start')
+        start_date = datetime.datetime.now()
+        now = datetime.datetime.now() - start_date
+        user_count = random.randint(4, 8)
         is_login_in = False
         i = 0
 
-        while not self.account.banned:
+        while not self.account.banned and now.seconds / 3600 < end_after_hour:
             try:
+                logger.info('Account work: %s hours %s seconds' % (now.seconds / 3600, now.seconds))
                 if self.navigation_helper.is_auth_page():
                     is_login_in = False
 
@@ -157,10 +137,11 @@ class LinkedInParsing:
 
                     is_login_in = True
 
-                if i < 7:
+                if i < user_count:
                     self.__start_parsing_iteration()
                 else:
                     self.do_random_actions()
+                    user_count = random.randint(4, 8)
                     i = -1
 
             except InternalError as ex:
@@ -176,6 +157,7 @@ class LinkedInParsing:
                 logger.error(ex, exc_info=True)
                 self.driver.refresh()
 
+            now = datetime.datetime.now() - start_date
             i += 1
 
     def stop(self):

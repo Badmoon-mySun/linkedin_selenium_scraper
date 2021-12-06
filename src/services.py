@@ -5,12 +5,18 @@ import time
 import zipfile
 from random import randrange
 
+from peewee import fn
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
 
-from db import Account, Proxy
+from db import Account, Proxy, SiteLink
 from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG, USER_AGENT
+
+
+def get_random_linkedin_url():
+    site_link = SiteLink.select().order_by(fn.Random()).get()
+    return site_link.url if site_link else None
 
 
 def get_account_data(data: list) -> dict:
@@ -65,13 +71,15 @@ def add_proxy_to_accounts(accounts: Account):
     if not proxies_count:
         return
 
+    j = 0
     for i in range(len(accounts)):
-        proxy = proxies[(i + 10) % proxies_count]
+        proxy = proxies[j % proxies_count]
         account = accounts[i]
 
         if not account.proxy:
             account.proxy = proxy
             account.save()
+            j += 1
 
 
 def get_manifest():

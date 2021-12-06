@@ -15,7 +15,10 @@ def worker(account: Account):
     logger = logging.getLogger('linkedin.main.worker')
     logger.info(f'Starting parsing with {account.email} account')
 
-    LinkedInParsing(account, use_proxy=True).start()
+    try:
+        LinkedInParsing(account, use_proxy=True).start(end_after_hour=2)
+    except Exception as ex:
+        logger.error(ex, exc_info=True)
 
 
 def get_or_load_accounts(load_form_file=False):
@@ -40,5 +43,6 @@ if __name__ == "__main__":
 
     pools_count = 1 if DEBUG else 2
 
-    with Pool(pools_count) as pool:
-        pool.map(worker, accounts)
+    while True:
+        with Pool(pools_count) as pool:
+            pool.map(worker, accounts)

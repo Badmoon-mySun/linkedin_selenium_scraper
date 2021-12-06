@@ -162,6 +162,15 @@ class UserContactInfo(peewee.Model):
         table_name = 'user_contact_info'
 
 
+class SiteLink(peewee.Model):
+    id = peewee.PrimaryKeyField()
+    url = peewee.CharField(max_length=510, unique=True)
+
+    class Meta:
+        database = current_db
+        table_name = 'site_link'
+
+
 tables = {
     'proxy': Proxy,
     'link': Link,
@@ -173,7 +182,8 @@ tables = {
     'linkedin_user_activity': Activity,
     'linkedin_education': Education,
     'linkedin_work_experience': WorkExperience,
-    'user_contact_info': UserContactInfo
+    'user_contact_info': UserContactInfo,
+    'site_link': SiteLink
 }
 
 for table_name, model in tables.items():

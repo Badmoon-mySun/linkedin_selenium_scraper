@@ -134,3 +134,4 @@ dmypy.json
 /accounts.csv
 /proxy.json
 /plugins/*
+/src/test.py

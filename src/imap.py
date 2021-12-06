@@ -36,11 +36,6 @@ class MailRuImap:
     def close(self):
         try:
             self.mail.close()
+            self.mail.logout()
         except:
             pass
-
-
-if __name__ == '__main__':
-    mail = MailRuImap('maria_nash_1964@inbox.ru', 'MEcetLhHqq7qKZRF6D62')
-    code = mail.get_last_email_verification_code()
-    print(code)
