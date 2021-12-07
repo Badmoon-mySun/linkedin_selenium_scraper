@@ -9,6 +9,7 @@ DEBUG = os.environ.get('DEBUG', False)
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.join(ROOT_DIR, '..')
 LOGGING_CONF_PATH = os.path.join(PROJECT_DIR, 'logging.conf')
+META_DIR = os.path.join(PROJECT_DIR, 'meta')
 
 DB_HOST = os.environ.get("DB_HOST", '127.0.0.1')
 DB_NAME = os.environ.get("DB_NAME", 'linkedin')

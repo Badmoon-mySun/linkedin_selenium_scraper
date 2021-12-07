@@ -10,7 +10,7 @@ from peewee import InternalError
 from db import Link, Account, LinkedInUser, current_db
 from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
 from imap import MailRuImap
-from services import get_chromedriver, get_random_linkedin_url
+from services import get_chromedriver, get_random_linkedin_url, save_browser_cookie, set_browser_cookie_if_exist
 
 
 def random_sleep(min_time=7, max_time=15):
@@ -123,6 +123,15 @@ class LinkedInParsing:
         is_login_in = False
         i = 0
 
+        try:
+            self.navigation_helper.goto_feed_page()
+            set_browser_cookie_if_exist(self.driver, self.account)
+            self.navigation_helper.goto_feed_page()
+            if self.navigation_helper.is_feed_page():
+                is_login_in = True
+        except Exception as ex:
+            logger.error(ex, exc_info=True)
+
         while not self.account.banned and now.seconds / 3600 < end_after_hour:
             try:
                 logger.info('Account work: %s hours %s seconds' % (now.seconds / 3600, now.seconds))
@@ -161,4 +170,6 @@ class LinkedInParsing:
             i += 1
 
     def stop(self):
+        save_browser_cookie(self.driver, self.account)
+        self.mail.close()
         self.driver.quit()

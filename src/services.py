@@ -1,17 +1,19 @@
 import json
 import logging
 import os
+import pickle
 import time
 import zipfile
-from random import randrange
 
 from peewee import fn
 from selenium import webdriver
 from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
+from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.remote.command import Command
 
 from db import Account, Proxy, SiteLink
-from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG, USER_AGENT
+from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG, USER_AGENT, META_DIR
 
 
 def get_random_linkedin_url():
@@ -139,6 +141,8 @@ def get_background_js(protocol, host, port, user, password):
 
 
 def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
+    email = str(account.email).replace('.', '')
+    plugin_path = os.path.join(os.path.join(META_DIR, 'plugin'), f'{email}.zip')
     service = Service(executable_path=CHROMEDRIVER_PATH)
     options = webdriver.ChromeOptions()
     options.add_argument("window-size=1280,800")
@@ -159,27 +163,48 @@ def get_chromedriver(account: Account, use_proxy=False, user_agent=None):
         proxy: Proxy = account.proxy
 
         if proxy.need_auth:
-            plugin_file = 'proxy_auth_plugin_%s.zip' % str(randrange(10000))
-            plugin_file = os.path.join(os.path.join(PROJECT_DIR, 'plugins'), plugin_file)
+            if os.path.exists(plugin_path):
+                os.remove(plugin_path)
 
-            with zipfile.ZipFile(plugin_file, 'w') as zp:
+            with zipfile.ZipFile(plugin_path, 'w') as zp:
                 zp.writestr("manifest.json", get_manifest())
                 zp.writestr(
                     "background.js", get_background_js(proxy.protocol, proxy.ip,
                                                        proxy.port, proxy.login, proxy.password)
                 )
 
-            options.add_extension(plugin_file)
+            options.add_extension(plugin_path)
         else:
             options.add_argument('--proxy-server=%s://%s:%s' % (proxy.protocol, proxy.ip, proxy.port))
 
     if user_agent:
         options.add_argument('--user-agent=%s' % user_agent)
 
-    return webdriver.Chrome(
-        service=service,
-        chrome_options=options
-    )
+    return webdriver.Chrome(service=service, chrome_options=options)
+
+
+def set_browser_cookie_if_exist(driver: WebDriver, account: Account):
+    email = str(account.email).replace('.', '')
+    cookie_path = os.path.join(os.path.join(META_DIR, 'cookie'), email)
+
+    if os.path.exists(cookie_path):
+        with open(cookie_path, 'rb') as file:
+            for cookie in pickle.load(file):
+                driver.add_cookie(cookie)
+            time.sleep(5)
+
+
+def save_browser_cookie(driver: WebDriver, account: Account):
+    email = str(account.email).replace('.', '')
+    cookie_path = os.path.join(os.path.join(META_DIR, 'cookie'), email)
+
+    try:
+        driver.execute(Command.STATUS)
+
+        with open(cookie_path, 'wb') as file:
+            pickle.dump(driver.get_cookies(), file)
+    finally:
+        pass
 
 
 def solve_captcha(url, key) -> str:

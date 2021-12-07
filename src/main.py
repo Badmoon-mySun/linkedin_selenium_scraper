@@ -15,10 +15,14 @@ def worker(account: Account):
     logger = logging.getLogger('linkedin.main.worker')
     logger.info(f'Starting parsing with {account.email} account')
 
+    linkedin_parser = LinkedInParsing(account, use_proxy=True)
+
     try:
-        LinkedInParsing(account, use_proxy=True).start(end_after_hour=2)
+        linkedin_parser.start(end_after_hour=0.5)
     except Exception as ex:
         logger.error(ex, exc_info=True)
+    finally:
+        linkedin_parser.stop()
 
 
 def get_or_load_accounts(load_form_file=False):

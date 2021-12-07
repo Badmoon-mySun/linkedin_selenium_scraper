@@ -133,5 +133,5 @@ dmypy.json
 /sqlite.*
 /accounts.csv
 /proxy.json
-/plugins/*
+/meta/*
 /src/test.py
