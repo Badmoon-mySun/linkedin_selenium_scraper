@@ -51,7 +51,6 @@ class LinkedInParsing:
 
             self.account.banned = True
             self.account.save()
-
         elif self.navigation_helper.is_add_phone_page():
             self.verification_helper.skip_add_phone_page()
 

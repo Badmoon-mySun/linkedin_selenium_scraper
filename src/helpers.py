@@ -125,11 +125,13 @@ class VerificationHelper(BaseHelper):
         try:
             element = driver.find_element(By.ID, "input__email_verification_pin")
             self.__email_verification(element, code)
+            return
         except NoSuchElementException:
             pass
 
         try:
             self.__do_captcha_challenge(account)
+            return
         except AnticatpchaException as ex:
             logger.error(ex.error_description)
             exit(1)
@@ -143,6 +145,20 @@ class VerificationHelper(BaseHelper):
                 driver.find_element(By.CSS_SELECTOR, 'label.form__label').click()
                 time.sleep(1)
                 driver.find_element(By.CSS_SELECTOR, 'button.content__button--primary').click()
+
+                return
+        except NoSuchElementException:
+            pass
+
+        try:
+            elem = driver.find_element(By.CSS_SELECTOR, 'main.app__content h1')
+            if "We've restricted your account temporarily" == elem.text:
+                logger.warning(f'Account {account.email} has been temporarily banned, exit...')
+
+                account.banned = True
+                account.temporarily_banned = True
+                account.save()
+                exit()
         except NoSuchElementException:
             pass
 

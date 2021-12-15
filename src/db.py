@@ -52,6 +52,7 @@ class Account(peewee.Model):
     email_password = peewee.CharField(max_length=50)
     account_url = peewee.CharField(max_length=510)
     banned = peewee.BooleanField(default=False)
+    temporarily_banned = peewee.BooleanField(default=False)
     proxy = peewee.ForeignKeyField(Proxy, null=True)
 
     class Meta:
