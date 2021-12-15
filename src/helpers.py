@@ -42,7 +42,8 @@ class NavigationHelper(BaseHelper):
         return False
 
     def is_identity_verification_page(self):
-        if 'checkpoint/lg/login-submit' in self.driver.current_url:
+        if 'checkpoint/lg/login-submit' in self.driver.current_url \
+                or 'checkpoint/lg/login-challenge-submit' in self.driver.current_url:
             return True
 
         return False
@@ -260,7 +261,8 @@ class UserProfileHelper(BaseHelper):
 
                 positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item')
                 if not positions:
-                    positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item-fading-timeline')
+                    positions = item.find_elements(By.CSS_SELECTOR,
+                                                   '.pv-entity__position-group-role-item-fading-timeline')
 
                 for position in positions:
                     elem = position.find_elements(By.CSS_SELECTOR, '.pv-entity__date-range span')
