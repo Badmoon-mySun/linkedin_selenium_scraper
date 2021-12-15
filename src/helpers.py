@@ -60,7 +60,7 @@ class NavigationHelper(BaseHelper):
         return False
 
     def is_feed_page(self):
-        return 'feed' in self.driver.current_url
+        return 'feed/' in self.driver.current_url
 
     def goto_feed_page(self):
         self.driver.get(f'{self.base_url}feed?trk=guest_homepage-basic_nav-header-signin')

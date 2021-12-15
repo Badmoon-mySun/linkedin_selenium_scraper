@@ -18,7 +18,7 @@ def worker(account: Account):
     linkedin_parser = LinkedInParsing(account, use_proxy=True)
 
     try:
-        linkedin_parser.start(end_after_hour=0.5)
+        linkedin_parser.start(end_after_hour=0.25)
     except Exception as ex:
         logger.error(ex, exc_info=True)
     finally:

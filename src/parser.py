@@ -124,7 +124,7 @@ class LinkedInParsing:
         i = 0
 
         try:
-            self.navigation_helper.goto_feed_page()
+            self.navigation_helper.go_base_page()
             set_browser_cookie_if_exist(self.driver, self.account)
             self.navigation_helper.goto_feed_page()
             if self.navigation_helper.is_feed_page():
