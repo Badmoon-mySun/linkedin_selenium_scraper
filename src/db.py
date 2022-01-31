@@ -18,17 +18,6 @@ postgres_db = peewee.PostgresqlDatabase(
 current_db = sqlite_db if DEBUG else postgres_db
 
 
-class Link(peewee.Model):
-    id = peewee.PrimaryKeyField()
-    url = peewee.CharField(max_length=510, unique=True)
-    is_checked = peewee.BooleanField(default=False)
-    is_moscow_location = peewee.BooleanField(default=False)
-
-    class Meta:
-        database = current_db
-        table_name = 'link'
-
-
 class Proxy(peewee.Model):
     id = peewee.PrimaryKeyField()
     protocol = peewee.CharField(max_length=10)
@@ -172,9 +161,44 @@ class SiteLink(peewee.Model):
         table_name = 'site_link'
 
 
+class PeopleSearchResult(peewee.Model):
+    id = peewee.PrimaryKeyField()
+    fullname = peewee.CharField(max_length=150, null=True)
+    position = peewee.CharField(max_length=250, null=True)
+    avatar = peewee.CharField(null=True)
+    city = peewee.ForeignKeyField(City, null=True)
+    url = peewee.CharField(max_length=510, null=True)
+    is_checked = peewee.BooleanField(default=False)
+
+    class Meta:
+        database = current_db
+        table_name = 'people_search_result'
+
+
+class AlsoViewed(peewee.Model):
+    id = peewee.PrimaryKeyField()
+    fullname = peewee.CharField(max_length=150, null=True)
+    position = peewee.CharField(max_length=250, null=True)
+    avatar = peewee.CharField(null=True)
+    url = peewee.CharField(max_length=510, unique=True)
+
+    class Meta:
+        database = current_db
+        table_name = 'also_viewed'
+
+
+class UsernameSearchHistory(peewee.Model):
+    id = peewee.PrimaryKeyField()
+    fullname = peewee.CharField(max_length=150, unique=True)
+    is_used = peewee.BooleanField(default=False)
+
+    class Meta:
+        database = current_db
+        table_name = 'username_search_history'
+
+
 tables = {
     'proxy': Proxy,
-    'link': Link,
     'account': Account,
     'linkedin_company': Company,
     'city': City,
@@ -184,7 +208,10 @@ tables = {
     'linkedin_education': Education,
     'linkedin_work_experience': WorkExperience,
     'user_contact_info': UserContactInfo,
-    'site_link': SiteLink
+    'site_link': SiteLink,
+    'people_search_result': PeopleSearchResult,
+    'also_viewed': AlsoViewed,
+    'username_search_history': UsernameSearchHistory
 }
 
 for table_name, model in tables.items():

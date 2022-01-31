@@ -1,14 +1,18 @@
 import logging
 import time
+import urllib
 from typing import Optional
+from urllib.parse import urlparse
 
 from python_anticaptcha import AnticatpchaException
+from selenium import webdriver
 from selenium.common.exceptions import NoSuchElementException, ElementClickInterceptedException
 from selenium.webdriver.common.by import By
-from selenium import webdriver
 
 from anticaptcha import Anticaptcha
 from db import *
+from services import get_element_or_none, get_text_or_none, get_elem_attribute_or_none, move_to_element, \
+    get_random_string
 from settings import USER_AGENT
 
 
@@ -36,32 +40,23 @@ class NavigationHelper(BaseHelper):
         self.driver.get(f'{self.base_url}login?fromSignIn=true&trk=guest_homepage-basic_nav-header-signin')
 
     def is_verification_page(self):
-        if 'checkpoint/challenge/' in self.driver.current_url:
-            return True
-
-        return False
+        return 'checkpoint/challenge/' in self.driver.current_url
 
     def is_identity_verification_page(self):
-        if 'checkpoint/lg/login-submit' in self.driver.current_url \
-                or 'checkpoint/lg/login-challenge-submit' in self.driver.current_url:
-            return True
-
-        return False
+        return 'checkpoint/lg/login-submit' in self.driver.current_url \
+               or 'checkpoint/lg/login-challenge-submit' in self.driver.current_url
 
     def is_add_phone_page(self):
-        if 'check/add-phone' in self.driver.current_url:
-            return True
-
-        return False
+        return 'check/add-phone' in self.driver.current_url
 
     def is_auth_page(self):
-        if 'authwall' in self.driver.current_url:
-            return True
-
-        return False
+        return 'authwall' in self.driver.current_url
 
     def is_feed_page(self):
         return 'feed/' in self.driver.current_url
+
+    def is_search_page(self):
+        return 'search/' in self.driver.current_url
 
     def goto_feed_page(self):
         self.driver.get(f'{self.base_url}feed?trk=guest_homepage-basic_nav-header-signin')
@@ -169,35 +164,10 @@ class UserProfileHelper(BaseHelper):
     def __init__(self, driver):
         super(UserProfileHelper, self).__init__(driver)
 
-    def __get_element_or_none(self, path, item=None):
-        item = item if item else self.driver
-
-        try:
-            return item.find_element(By.CSS_SELECTOR, path)
-        except NoSuchElementException:
-            return None
-
-    def __get_text_or_none(self, path, item=None) -> Optional[str]:
-        elem = self.__get_element_or_none(path, item)
-
-        return elem.text if elem else None
-
-    def __get_elem_attribute_or_none(self, path, attr_name, item=None) -> Optional[str]:
-        elem = self.__get_element_or_none(path, item)
-
-        return elem.get_attribute(attr_name) if elem else None
-
-    def __move_to_element(self, element):
-        desired_y = (element.size['height'] / 2) + element.location['y']
-        current_y = (self.driver.execute_script('return window.innerHeight') / 2) + self.driver.execute_script(
-            'return window.pageYOffset')
-        scroll_y_by = desired_y - current_y
-        self.driver.execute_script("window.scrollBy(0, arguments[0]);", scroll_y_by)
-
     def __do_click(self, element) -> bool:
         try:
             if element:
-                self.__move_to_element(element)
+                move_to_element(self.driver, element)
                 time.sleep(1)
 
                 element.click()
@@ -208,39 +178,49 @@ class UserProfileHelper(BaseHelper):
 
         return False
 
+    @staticmethod
+    def __parse_also_vied(viewer) -> dict:
+        return {
+            'fullname': get_text_or_none('span.name', viewer),
+            'position': get_text_or_none('div.inline-show-more-text', viewer),
+            'avatar': get_elem_attribute_or_none('img.pv-browsemap-section__member-image', 'src', viewer),
+            'url': viewer.get_attribute('href')
+        }
+
     def save_also_vied(self):
-        button = self.__get_element_or_none('button.pv3.artdeco-card__action.artdeco-button.artdeco-button--muted')
+        button = get_element_or_none('button.pv3.artdeco-card__action.artdeco-button.artdeco-button--muted',
+                                     self.driver)
 
         self.__do_click(button)
 
         viewers = self.driver.find_elements(By.CSS_SELECTOR, '.ember-view.pv-browsemap-section__member')
-        links_data = map(lambda el: {'url': el.get_attribute('href')}, viewers)
+        also_vied = map(lambda el: self.__parse_also_vied(el), viewers)
 
-        Link.insert_many(links_data).on_conflict_ignore().execute()
+        AlsoViewed.insert_many(also_vied).on_conflict_ignore().execute()
 
     def get_fullname(self) -> Optional[str]:
-        return self.__get_text_or_none("h1.text-heading-xlarge.inline.t-24.v-align-middle.break-words")
+        return get_text_or_none("h1.text-heading-xlarge.inline.t-24.v-align-middle.break-words", self.driver)
 
     def get_position(self) -> Optional[str]:
-        return self.__get_text_or_none("div.text-body-medium.break-words")
+        return get_text_or_none("div.text-body-medium.break-words", self.driver)
 
     def get_about(self) -> Optional[str]:
-        return self.__get_text_or_none("section.pv-about-section div")
+        return get_text_or_none("section.pv-about-section div", self.driver)
 
     def get_or_create_current_company(self) -> Optional[Company]:
-        company = self.__get_element_or_none('a.pv-text-details__right-panel-item-link')
+        company = get_element_or_none('a.pv-text-details__right-panel-item-link', self.driver)
 
         if not company:
             return None
         url = company.get_attribute('href')
 
-        return Company.get_or_create(name=self.__get_text_or_none('h2 div', company), url=url)[0]
+        return Company.get_or_create(name=get_text_or_none('h2 div', company), url=url)[0]
 
     def get_avatar(self) -> Optional[str]:
-        return self.__get_elem_attribute_or_none('img.pv-top-card-profile-picture__image', "src")
+        return get_elem_attribute_or_none('img.pv-top-card-profile-picture__image', "src", self.driver)
 
     def get_city(self) -> Optional[City]:
-        city_name = self.__get_text_or_none('span.text-body-small.inline.t-black--light.break-words')
+        city_name = get_text_or_none('span.text-body-small.inline.t-black--light.break-words', self.driver)
 
         if not city_name:
             return None
@@ -250,7 +230,7 @@ class UserProfileHelper(BaseHelper):
         return City.get_or_create(name=city_name)[0]
 
     def get_following_count(self) -> Optional[str]:
-        following_count = self.__get_text_or_none('ul.pv-top-card--list li span')
+        following_count = get_text_or_none('ul.pv-top-card--list li span', self.driver)
 
         return following_count.strip() if following_count else None
 
@@ -269,10 +249,10 @@ class UserProfileHelper(BaseHelper):
         data = self.driver.find_elements(By.CSS_SELECTOR, 'section.pv-profile-section__card-item-v2')
 
         for item in data:
-            if self.__get_text_or_none('.pv-entity__company-details', item):
+            if get_text_or_none('.pv-entity__company-details', item):
                 company = Company.get_or_create(
-                    name=self.__get_text_or_none('.pv-entity__company-summary-info h3 span:last-child', item),
-                    url=self.__get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
+                    name=get_text_or_none('.pv-entity__company-summary-info h3 span:last-child', item),
+                    url=get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
                 )[0]
 
                 positions = item.find_elements(By.CSS_SELECTOR, '.pv-entity__position-group-role-item')
@@ -291,9 +271,9 @@ class UserProfileHelper(BaseHelper):
                     ex = WorkExperience.create(
                         company=company.id,
                         user=user.id,
-                        position=self.__get_text_or_none('div.pv-entity__summary-info--background-section '
-                                                         'h3 span:last-child', position),
-                        description=self.__get_text_or_none('.pv-entity__description', position),
+                        position=get_text_or_none('div.pv-entity__summary-info--background-section '
+                                                  'h3 span:last-child', position),
+                        description=get_text_or_none('.pv-entity__description', position),
                         duration=' '.join(duration),
                         start_date=duration[0],
                         end_date='Present' if duration[1] == 'Present' else duration[1],
@@ -309,8 +289,8 @@ class UserProfileHelper(BaseHelper):
                 duration = self.__parse_duration(elems)
 
                 company = Company.get_or_create(
-                    name=self.__get_text_or_none('p.pv-entity__secondary-title', item),
-                    url=self.__get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
+                    name=get_text_or_none('p.pv-entity__secondary-title', item),
+                    url=get_elem_attribute_or_none('a.full-width.ember-view', 'href', item)
                 )[0]
 
                 while len(duration) < 2:
@@ -319,8 +299,8 @@ class UserProfileHelper(BaseHelper):
                 ex = WorkExperience.create(
                     company=company.id,
                     user=user.id,
-                    position=self.__get_text_or_none('div.pv-entity__summary-info h3', item),
-                    description=self.__get_text_or_none('.pv-entity__description', item),
+                    position=get_text_or_none('div.pv-entity__summary-info h3', item),
+                    description=get_text_or_none('.pv-entity__description', item),
                     duration=' '.join(duration),
                     start_date=duration[0],
                     end_date='Present' if duration[1] == 'Present' else duration[1],
@@ -336,8 +316,8 @@ class UserProfileHelper(BaseHelper):
 
         for elem in data:
             institution = Company.get_or_create(
-                name=self.__get_text_or_none('h3.pv-entity__school-name', elem),
-                url=self.__get_elem_attribute_or_none('a', 'src', elem)
+                name=get_text_or_none('h3.pv-entity__school-name', elem),
+                url=get_elem_attribute_or_none('a', 'src', elem)
             )[0]
 
             degrees = elem.find_elements(By.CSS_SELECTOR, 'span.pv-entity__comma-item')
@@ -358,14 +338,14 @@ class UserProfileHelper(BaseHelper):
         for elem in elements:
             Activity.create(
                 user=user.id,
-                title=self.__get_text_or_none('.pv-recent-activity-item-v2__title div', elem),
-                attribution=self.__get_text_or_none('.pv-recent-activity-item-v2__message div', elem),
-                image=self.__get_elem_attribute_or_none('img.ivm-view-attr__img--centered', 'src', elem),
-                link=self.__get_elem_attribute_or_none('a.pv-recent-activity-item-v2__detail', 'href', elem)
+                title=get_text_or_none('.pv-recent-activity-item-v2__title div', elem),
+                attribution=get_text_or_none('.pv-recent-activity-item-v2__message div', elem),
+                image=get_elem_attribute_or_none('img.ivm-view-attr__img--centered', 'src', elem),
+                link=get_elem_attribute_or_none('a.pv-recent-activity-item-v2__detail', 'href', elem)
             )
 
     def save_user_contacts(self, user: LinkedInUser):
-        open_button = self.__get_element_or_none('a.ember-view.link-without-visited-state.cursor-pointer')
+        open_button = get_element_or_none('a.ember-view.link-without-visited-state.cursor-pointer', self.driver)
 
         if not self.__do_click(open_button):
             return
@@ -373,7 +353,7 @@ class UserProfileHelper(BaseHelper):
         elements = self.driver.find_elements(By.CSS_SELECTOR, 'section.pv-contact-info__contact-type')
 
         for elem in elements:
-            name = self.__get_text_or_none('pv-contact-info__header', elem)
+            name = get_text_or_none('pv-contact-info__header', elem)
 
             link_elements = elem.find_elements(By.CSS_SELECTOR, 'a.pv-contact-info__contact-link')
 
@@ -381,15 +361,109 @@ class UserProfileHelper(BaseHelper):
                 UserContactInfo.create(
                     name=name,
                     user=user.id,
-                    url=self.__get_elem_attribute_or_none('a.pv-contact-info__contact-link', 'href', elem),
-                    meta=self.__get_text_or_none('span.t-14.t-black--light.t-normal', link_elem)
+                    url=get_elem_attribute_or_none('a.pv-contact-info__contact-link', 'href', elem),
+                    meta=get_text_or_none('span.t-14.t-black--light.t-normal', link_elem)
                 )
 
-        close_button = self.__get_element_or_none('button.artdeco-modal__dismiss')
+        close_button = get_element_or_none('button.artdeco-modal__dismiss', self.driver)
         self.__do_click(close_button)
 
     def close_msg_tab(self):
-        if self.__get_element_or_none('.msg-overlay-list-bubble__content'):
-            btn = self.__get_element_or_none('.msg-overlay-bubble-header__control--new-convo-btn:last-child')
+        if get_element_or_none('.msg-overlay-list-bubble__content', self.driver):
+            btn = get_element_or_none('.msg-overlay-bubble-header__control--new-convo-btn:last-child', self.driver)
             if btn:
                 btn.click()
+
+
+class PeopleSearchHelper(BaseHelper):
+    driver: webdriver.Chrome
+    city_ids = ["100265023", "90010153", "102301812", "103472036", "102084685", "106272742", "90010152",
+                "100945174", "100674497", "105245374", "102450862", "90010149", "106769929", "102122368",
+                "106843614", "105593862", "90010148", "104523009", "104043205", "100367933", "90010185",
+                "107992632", "101777369", "90010146", "104359155", "90010184", "106686604", "90010145",
+                "104994045", "101631519"]
+
+    def __init__(self, driver):
+        super(PeopleSearchHelper, self).__init__(driver)
+
+    def __clean_city_ids(self):
+        result = str(self.city_ids).replace('[', '%5B').replace(']', '%5D')
+        return result.replace(' ', '').replace(',', '%2C').replace("'", '%22')
+
+    @staticmethod
+    def __clean_user_name(name):
+        return urllib.parse.quote_plus(name)
+
+    def find_people_in_big_city(self, name):
+        url = 'https://www.linkedin.com/search/results/people/?geoUrn=%s&keywords=%s&origin=FACETED_SEARCH&sid=%s' % (
+                    self.__clean_city_ids(), self.__clean_user_name(name), get_random_string(3))
+
+        self.driver.get(url)
+
+    @staticmethod
+    def __clean_user_url(url) -> str:
+        if url is not None:
+            url_parse = urlparse(url)
+
+            url = url_parse.scheme + '://' + url_parse.netloc + url_parse.path + '/'
+
+        return url
+
+    def __get_user_from_li(self, item) -> PeopleSearchResult:
+        city_name = get_text_or_none('div.entity-result__secondary-subtitle', item)
+        city_name = city_name.lower() if city_name else city_name
+
+        url = get_elem_attribute_or_none('span.entity-result__title-text a', 'href', item)
+        url = self.__clean_user_url(url)
+
+        return PeopleSearchResult(
+            fullname=get_text_or_none('.entity-result__title-text a span span', item),
+            position=get_text_or_none('div.entity-result__primary-subtitle', item),
+            avatar=get_elem_attribute_or_none('img.ivm-view-attr__img--centered', 'src', item),
+            city=City.get_or_create(name=city_name)[0],
+            url=url
+        )
+
+    def __get_people_from_search_page(self):
+        logger = logging.getLogger('linkedin.helpers.PeopleSearchHelper.__get_people_from_search_page')
+        people_blocks = self.driver.find_elements(By.CSS_SELECTOR, 'li.reusable-search__result-container')
+        result = []
+
+        for item in people_blocks:
+            try:
+                result.append(self.__get_user_from_li(item))
+            except Exception as ex:
+                logger.error(ex, exc_info=True)
+
+        return result
+
+    def get_people_from_search(self):
+        def get_button():
+            time.sleep(2)
+            self.driver.execute_script("window.scrollBy(0, 2000);")
+            time.sleep(2)
+            return get_element_or_none('button.artdeco-button--icon-right.artdeco-button--1', self.driver)
+
+        logger = logging.getLogger('linkedin.helpers.PeopleSearchHelper.get_people_from_search')
+
+        result = self.__get_people_from_search_page()
+
+        if not result:
+            return result
+
+        time.sleep(2)
+        button = get_button()
+
+        while button and button.is_enabled():
+            logger.info('Search linkedin members, next page')
+            button.click()
+            time.sleep(4)
+
+            self.driver.execute_script("window.scrollBy(0, document.body.scrollHeight);")
+            result += self.__get_people_from_search_page()
+            button = get_button()
+
+            if not button:
+                button = get_button()
+
+        return result

@@ -2,17 +2,23 @@ import json
 import logging
 import os
 import pickle
+import random
+import string
 import time
 import zipfile
+from typing import Optional, List
 
+import peewee
 from peewee import fn
 from selenium import webdriver
+from selenium.common.exceptions import NoSuchElementException
 from selenium.webdriver.chrome.service import Service
 from python3_anticaptcha import FunCaptchaTaskProxyless
 from selenium.webdriver.chrome.webdriver import WebDriver
+from selenium.webdriver.common.by import By
 from selenium.webdriver.remote.command import Command
 
-from db import Account, Proxy, SiteLink
+from db import Account, Proxy, SiteLink, PeopleSearchResult, LinkedInUser, UsernameSearchHistory, AlsoViewed
 from settings import ROOT_DIR, CHROMEDRIVER_PATH, PROJECT_DIR, ANTICAPTCHA_KEY, DEBUG, USER_AGENT, META_DIR
 
 
@@ -232,3 +238,97 @@ def solve_captcha(url, key) -> str:
                 return token
 
     raise Exception('Exception in solve captcha: %s' % result)
+
+
+def get_element_or_none(path, item):
+    try:
+        return item.find_element(By.CSS_SELECTOR, path)
+    except NoSuchElementException:
+        return None
+
+
+def get_text_or_none(path, item) -> Optional[str]:
+    elem = get_element_or_none(path, item)
+
+    return elem.text if elem else None
+
+
+def get_elem_attribute_or_none(path, attr_name, item) -> Optional[str]:
+    elem = get_element_or_none(path, item)
+
+    return elem.get_attribute(attr_name) if elem else None
+
+
+def move_to_element(driver, element):
+    desired_y = (element.size['height'] / 2) + element.location['y']
+    current_y = (driver.execute_script('return window.innerHeight') / 2) + driver.execute_script(
+        'return window.pageYOffset')
+    scroll_y_by = desired_y - current_y
+    driver.execute_script("window.scrollBy(0, arguments[0]);", scroll_y_by)
+
+
+def get_random_string(length):
+    return ''.join((random.choice(string.ascii_lowercase) for x in range(length)))
+
+
+def save_search_result_that_not_parsed(result: List[PeopleSearchResult]):
+    urls = list(map(lambda m: m.url, result))
+    fun = lambda tpl: tpl[0]
+
+    r = LinkedInUser.select(LinkedInUser.url).where(LinkedInUser.url << urls)
+    saved_urls = list(map(fun, r.tuples()))
+
+    r = PeopleSearchResult.select(PeopleSearchResult.url).where(PeopleSearchResult.url << urls)
+    saved_urls += list(map(fun, r.tuples()))
+
+    for item in result:
+        if item.url not in saved_urls:
+            item.save()
+
+
+def clean_users_without_name(array: List[PeopleSearchResult]) -> List[PeopleSearchResult]:
+    return list(filter(lambda x: x.fullname is not None, array))
+
+
+def get_people_search_result_count() -> int:
+    return (
+        PeopleSearchResult
+            .select(fn.Count(PeopleSearchResult.url))
+            .where(PeopleSearchResult.is_checked == False)
+            .scalar()
+    )
+
+
+def random_sleep(min_time=7, max_time=15):
+    delay = random.randint(min_time, max_time)
+    time.sleep(delay)
+
+
+def get_random_model_record(model):
+    return model.select().order_by(fn.Random()).limit(1)[0]
+
+
+def get_username_to_search():
+    free_names = (
+        UsernameSearchHistory
+            .select(fn.Count(UsernameSearchHistory.fullname))
+            .where(UsernameSearchHistory.is_used == False)
+            .scalar()
+    )
+
+    if free_names < 10:
+        new_views = (
+            AlsoViewed
+                .select(AlsoViewed.fullname)
+                .join(UsernameSearchHistory, peewee.JOIN.LEFT_OUTER,
+                      on=(AlsoViewed.fullname == UsernameSearchHistory.fullname))
+                .where(UsernameSearchHistory.id.is_null())
+                .tuples()
+                .execute()
+        )
+
+        new_names = list(map(lambda tpl: {'fullname': tpl[0]}, new_views))
+
+        UsernameSearchHistory.insert_many(new_names).on_conflict_ignore().execute()
+
+    return get_random_model_record(UsernameSearchHistory)

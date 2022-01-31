@@ -7,16 +7,14 @@ from imaplib import IMAP4
 
 from peewee import InternalError
 
-from db import Link, Account, LinkedInUser, current_db
-from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper
+from db import Account, LinkedInUser, current_db, PeopleSearchResult, AlsoViewed
+from helpers import NavigationHelper, LoginHelper, VerificationHelper, UserProfileHelper, PeopleSearchHelper
 from imap import MailRuImap
-from services import get_chromedriver, get_random_linkedin_url, save_browser_cookie, set_browser_cookie_if_exist
+from services import get_chromedriver, get_random_linkedin_url, save_browser_cookie, set_browser_cookie_if_exist, \
+    save_search_result_that_not_parsed, get_people_search_result_count, random_sleep, \
+    get_random_model_record, get_username_to_search, clean_users_without_name
 
-
-def random_sleep(min_time=7, max_time=15):
-    delay = random.randint(min_time, max_time)
-    time.sleep(delay)
-
+MIN_USER_COUNT = 100
 
 class LinkedInParsing:
     account: Account
@@ -35,6 +33,7 @@ class LinkedInParsing:
         self.verification_helper = VerificationHelper(self.driver)
         self.mail = MailRuImap(account.email, account.email_password)
         self.user_profile_helper = UserProfileHelper(self.driver)
+        self.people_search_helper = PeopleSearchHelper(self.driver)
 
     def __login(self):
         logger = logging.getLogger('linkedin.parser.LinkedInParsing.__login')
@@ -58,35 +57,22 @@ class LinkedInParsing:
         if not self.navigation_helper.is_feed_page():
             raise Exception('Attempt to login failed')
 
-        self.user_profile_helper.close_msg_tab()
+    def __search_linkedin_members(self, fullname):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.__search_linkedin_members')
 
-    def __start_parsing_iteration(self):
-        logger = logging.getLogger('linkedin.parser.LinkedInParsing.__start_parsing_iteration')
-        profile_helper = self.user_profile_helper
-        driver = self.driver
+        self.people_search_helper.find_people_in_big_city(fullname)
 
-        link = Link.select().filter(is_checked=False).first()
-        link.is_checked = True
-        link.save()
+        if self.navigation_helper.is_search_page():
+            logger.info(f"Account: {self.account.email} -- Search linkedin members with name {fullname}")
+            peoples = self.people_search_helper.get_people_from_search()
 
-        driver.get(link.url)
-        random_sleep()
+            peoples = clean_users_without_name(peoples)
+            save_search_result_that_not_parsed(peoples)
 
-        city = profile_helper.get_city()
-        logger.info('Parsing user: %s has city: %s' % (link.url, city))
-        if city and city.name and 'moscow' in city.name:
-            link.is_moscow_location = True
-            link.save()
+            logger.info(f"Account: {self.account.email} -- Search linkedin members with "
+                        f"name {fullname} complite, {len(peoples)} found")
 
-            profile_helper.save_also_vied()
-
-            random_sleep()
-
-            self.save_user_info(city)
-
-        random_sleep(2, 6)
-
-    def save_user_info(self, city):
+    def save_user_info(self):
         helper = self.user_profile_helper
 
         user = LinkedInUser.create(
@@ -94,7 +80,7 @@ class LinkedInParsing:
             about=helper.get_about(),
             avatar=helper.get_avatar(),
             following=helper.get_following_count(),
-            city=city.id if city else None,
+            city=helper.get_city(),
             position=helper.get_position(),
             url=self.driver.current_url
         )
@@ -113,6 +99,39 @@ class LinkedInParsing:
             driver.get(url)
             logger.info('Go to random linkedin url: %s' % url)
             random_sleep(9, 20)
+
+    def __start_parsing_iteration(self):
+        logger = logging.getLogger('linkedin.parser.LinkedInParsing.__start_parsing_iteration')
+        profile_helper = self.user_profile_helper
+        driver = self.driver
+
+        user_for_parsing_count = get_people_search_result_count()
+        logger.info(f'Account: {self.account.email} -- PeopleSearchResult records count = %s' % user_for_parsing_count)
+
+        if not user_for_parsing_count < MIN_USER_COUNT:
+            search_result = get_random_model_record(PeopleSearchResult)
+            logger.info(f'Account: {self.account.email} -- Parsing user %s' % search_result.url)
+            driver.get(search_result.url)
+
+            self.user_profile_helper.close_msg_tab()
+            profile_helper.save_also_vied()
+
+            random_sleep()
+
+            self.save_user_info()
+
+            search_result.is_checked = True
+            search_result.save()
+        else:
+            username_model = get_username_to_search()
+            name = username_model.fullname
+
+            self.__search_linkedin_members(name)
+
+            username_model.is_used = True
+            username_model.save()
+
+        random_sleep(2, 6)
 
     def start(self, end_after_hour=sys.maxsize):
         logger = logging.getLogger('linkedin.parser.LinkedInParsing.start')
@@ -133,7 +152,9 @@ class LinkedInParsing:
 
         while not self.account.banned and now.seconds / 3600 < end_after_hour:
             try:
-                logger.info('Account work: %s hours %s seconds' % (now.seconds / 3600, now.seconds))
+                logger.info(f'Account: {self.account.email} -- Account work: %.2f minutes %s seconds' %
+                            (now.seconds / 60, now.seconds))
+
                 if self.navigation_helper.is_auth_page():
                     is_login_in = False
 
